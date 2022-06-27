@@ -1,10 +1,9 @@
 #include <memory>
 #include <iostream>
-
-#include "eval.hh"
-#include "store-api.hh"
-
 #include <nlohmann/json.hpp>
+#include <nix/config.h>
+#include <nix/eval.hh>
+#include <nix/store-api.hh>
 
 using namespace nix;
 

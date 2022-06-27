@@ -1,24 +1,22 @@
 {
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nci = {
-      url = "github:yusdacra/nix-cargo-integration";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-  };
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  outputs = { self, nixpkgs }:
+    let
+      pkgs = nixpkgs.legacyPackages.x86_64-linux;
+    in
+    {
+      devShells.x86_64-linux.default = pkgs.mkShell {
+        buildInputs = [
+          # Rust dev
+          pkgs.rustc
+          pkgs.cargo
+          pkgs.rust-analyzer
 
-  outputs = { self, nixpkgs, nci, ... }:
-    nci.lib.makeOutputs {
-      # Documentation and examples:
-      # https://github.com/yusdacra/rust-nix-templater/blob/master/template/flake.nix
-      root = ./.;
-      overrides = {
-        shell = common: prev: {
-          packages = prev.packages ++ [
-            common.pkgs.rust-analyzer
-            common.pkgs.cargo-watch
-          ];
-        };
+          # C/C++ dev
+          pkgs.nix
+          pkgs.nix.dev
+          pkgs.boost
+        ];
       };
     };
 }

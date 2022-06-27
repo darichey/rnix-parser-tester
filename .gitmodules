@@ -1,3 +1,0 @@
-[submodule "nix"]
-	path = reference_to_json/nix
-	url = git@github.com:NixOS/nix.git
