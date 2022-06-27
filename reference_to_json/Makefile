@@ -1,11 +1,12 @@
 .PHONY: all clean
 
-all: reference_to_json.cc
+all: reference_to_json.cpp
 
 clean:
 	rm reference_to_json
 
-reference_to_json.cc:
-	$(CXX) reference_to_json.cc \
+reference_to_json.cpp:
+	NIX_DEBUG=1 cc reference_to_json.cpp \
 		-o reference_to_json \
-		-lnixexpr -lnixstore -lnixutil
+		-lstdc++ -lnixexpr -lnixstore -lnixutil \
+		-v

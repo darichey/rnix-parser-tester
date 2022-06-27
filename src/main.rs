@@ -1,3 +1,9 @@
+#[link(name = "foo")]
+extern {
+    fn triple(x: i32) -> i32;
+}
+
 fn main() {
-    println!("Hello, world!");
+    let x = unsafe { triple(3) }; 
+    println!("Hello, world! {}", x);
 }
