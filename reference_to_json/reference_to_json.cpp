@@ -237,16 +237,13 @@ extern "C" const char *nix_expr_to_json_str(const char *nix_expr)
 {
     initGC();
 
-    Strings searchPath = {};
+    auto searchPath = Strings {};
     auto store = openStore();
     auto state = std::make_unique<EvalState>(searchPath, store);
     auto expr = state->parseExprFromString(nix_expr, absPath("."));
 
-    auto s = nix_expr_to_json(expr, state->symbols).dump();
+    auto json_str = nix_expr_to_json(expr, state->symbols).dump();
+    auto c_str = json_str.c_str();
 
-    char* foo = (char*) malloc(sizeof(char) * 1000);
-    std::size_t length = s.copy(foo, s.length());
-    foo[length] = '\0';
-
-    return foo;
+    return strdup(c_str);
 }
