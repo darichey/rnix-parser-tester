@@ -3,7 +3,7 @@ A small C++ library which uses the reference implementation of the Nix language 
 
 The main function of interest is...
 ```cpp
-const char *nix_expr_to_json_str(const char *nix_expr);
+const char *nix_expr_to_json_str(struct Parser *parser, const char *nix_expr);
 ```
 
 ## Example
@@ -12,9 +12,11 @@ const char *nix_expr_to_json_str(const char *nix_expr);
 #include "reference_to_json.h"
 
 int main() {
+    struct Parser *parser = init_parser();
     const char *nix_expr = "1-1";
-    const char *ast_json = nix_expr_to_json_str(nix_expr);
+    const char *ast_json = nix_expr_to_json_str(parser, nix_expr);
     printf("%s", ast_json);
+    destroy_parser(parser);
 }
 ```
 Output:
@@ -28,3 +30,5 @@ make
 ```
 
 Note that the parent Rust project takes care of building via `rs-cc` in [build.rs](../build.rs), so you only need to manually build this if you want to use it in another context.
+
+Build the example with `make example`.

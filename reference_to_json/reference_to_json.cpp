@@ -5,6 +5,8 @@
 #include <nix/eval.hh>
 #include <nix/store-api.hh>
 
+#include "reference_to_json.h"
+
 using namespace nix;
 
 nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols);
@@ -233,16 +235,36 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     throw NotImplemented();
 }
 
-extern "C" const char *nix_expr_to_json_str(const char *nix_expr)
+struct Parser
+{
+    EvalState *state;
+
+    ~Parser() {
+        delete state;
+    }
+};
+
+extern "C" Parser *init_parser()
 {
     initGC();
 
-    auto searchPath = Strings {};
+    auto searchPath = Strings{};
     auto store = openStore();
-    auto state = std::make_unique<EvalState>(searchPath, store);
-    auto expr = state->parseExprFromString(nix_expr, absPath("."));
+    auto state = new EvalState(searchPath, store);
 
-    auto json_str = nix_expr_to_json(expr, state->symbols).dump();
+    return new Parser{state};
+}
+
+extern "C" void destroy_parser(Parser *parser)
+{
+    delete parser;
+}
+
+extern "C" const char *nix_expr_to_json_str(Parser *parser, const char *nix_expr)
+{
+    auto expr = parser->state->parseExprFromString(nix_expr, absPath("."));
+
+    auto json_str = nix_expr_to_json(expr, parser->state->symbols).dump();
     auto c_str = json_str.c_str();
 
     return strdup(c_str);
