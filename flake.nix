@@ -11,6 +11,7 @@
           pkgs.rustc
           pkgs.cargo
           pkgs.rust-analyzer
+          pkgs.rustfmt
 
           # C/C++ dev
           pkgs.nix

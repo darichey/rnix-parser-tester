@@ -1,9 +1,24 @@
 # reference_to_json
-A small C++ program which uses the reference implementation of the Nix language parser to parse a Nix expression and output the AST as JSON.
+A small C++ library which uses the reference implementation of the Nix language parser to parse a Nix expression and output the AST as JSON. This is primarily intended to be used by the parent Rust project via FFI.
+
+The main function of interest is...
+```cpp
+const char *nix_expr_to_json_str(const char *nix_expr);
+```
 
 ## Example
+```c
+#include "stdio.h"
+#include "reference_to_json.h"
+
+int main() {
+    const char *nix_expr = "1-1";
+    const char *ast_json = nix_expr_to_json_str(nix_expr);
+    printf("%s", ast_json);
+}
 ```
-$ ./reference_to_json <<< "1-1"
+Output:
+```
 ["Call",["Var","__sub"],[["Int",1],["Int",1]]]
 ```
 
@@ -11,3 +26,5 @@ $ ./reference_to_json <<< "1-1"
 ```
 make
 ```
+
+Note that the parent Rust project takes care of building via `rs-cc` in [build.rs](../build.rs), so you only need to manually build this if you want to use it in another context.

@@ -233,19 +233,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     throw NotImplemented();
 }
 
-// int main()
-// {
-//     initGC();
-
-//     Strings searchPath = {};
-//     auto store = openStore();
-//     auto state = std::make_unique<EvalState>(searchPath, store);
-//     auto expr = state->parseStdin();
-
-//     std::cout << nix_expr_to_json(expr, state->symbols);
-// }
-
-extern "C" const char *triple(const char *nix_expr)
+extern "C" const char *nix_expr_to_json_str(const char *nix_expr)
 {
     initGC();
 
@@ -254,9 +242,11 @@ extern "C" const char *triple(const char *nix_expr)
     auto state = std::make_unique<EvalState>(searchPath, store);
     auto expr = state->parseExprFromString(nix_expr, absPath("."));
 
-    return nix_expr_to_json(expr, state->symbols).dump().c_str();
-}
+    auto s = nix_expr_to_json(expr, state->symbols).dump();
 
-// extern "C" int triple(int x) {
-//     return x * 3;
-// }
+    char* foo = (char*) malloc(sizeof(char) * 1000);
+    std::size_t length = s.copy(foo, s.length());
+    foo[length] = '\0';
+
+    return foo;
+}
