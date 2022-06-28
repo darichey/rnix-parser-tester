@@ -1,10 +1,6 @@
-[package]
-name = "rnix-parser-tester"
-version = "0.1.0"
-edition = "2021"
+[workspace]
 
-[dependencies]
-libc = "0.2.0"
-
-[build-dependencies]
-cc = "1.0.73"
+members = [
+    "crates/parser_tester",
+    "crates/ref_impl_parser",
+]

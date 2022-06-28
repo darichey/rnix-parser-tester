@@ -15,7 +15,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
-name = "rnix-parser-tester"
+name = "parser_tester"
+version = "0.1.0"
+dependencies = [
+ "ref_impl_parser",
+]
+
+[[package]]
+name = "ref_impl_parser"
 version = "0.1.0"
 dependencies = [
  "cc",

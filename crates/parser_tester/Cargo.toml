@@ -1,0 +1,7 @@
+[package]
+name = "parser_tester"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ref_impl_parser = { path = "../ref_impl_parser" }
