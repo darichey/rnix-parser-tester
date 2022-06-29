@@ -6,21 +6,23 @@ use rnix::{
 };
 use serde_json::json;
 
-fn parsed_type(node: Option<SyntaxNode>) -> ParsedType {
-    ParsedType::try_from(node.unwrap()).unwrap()
+pub fn nix_expr_to_json(nix_expr: &str) -> String {
+    let nix_expr = rnix::parse(nix_expr).root().inner();
+    parsed_type_to_json(nix_expr).to_string()
 }
 
-fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
+fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
+    let nix_expr = ParsedType::try_from(nix_expr.unwrap()).unwrap();
     match nix_expr {
         ParsedType::Apply(apply) => json!({
             "type": "Call",
-            "fun": nix_expr_to_json(parsed_type(apply.lambda())),
-            "args": [ nix_expr_to_json(parsed_type(apply.value())) ], // FIXME: the reference parser collects all function arguments into a single Call node
+            "fun": parsed_type_to_json(apply.lambda()),
+            "args": [ parsed_type_to_json(apply.value()) ], // FIXME: the reference parser collects all function arguments into a single Call node
         }),
         ParsedType::Assert(assert) => json!({
             "type": "Assert",
-            "cond": nix_expr_to_json(parsed_type(assert.condition())),
-            "body": nix_expr_to_json(parsed_type(assert.body())),
+            "cond": parsed_type_to_json(assert.condition()),
+            "body": parsed_type_to_json(assert.body()),
         }),
         ParsedType::Key(_) => todo!(),
         ParsedType::Dynamic(_) => todo!(),
@@ -31,9 +33,9 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
         }),
         ParsedType::IfElse(if_else) => json!({
             "type": "If",
-            "cond": nix_expr_to_json(parsed_type(if_else.condition())),
-            "then": nix_expr_to_json(parsed_type(if_else.body())),
-            "else": nix_expr_to_json(parsed_type(if_else.else_body())),
+            "cond": parsed_type_to_json(if_else.condition()),
+            "then": parsed_type_to_json(if_else.body()),
+            "else": parsed_type_to_json(if_else.else_body()),
         }),
         ParsedType::Select(_) => todo!(),
         ParsedType::Inherit(_) => todo!(),
@@ -45,26 +47,26 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
         ParsedType::BinOp(bin_op) => match bin_op.operator().unwrap() {
             BinOpKind::Concat => json!({
                 "type": "OpConcatLists",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             BinOpKind::IsSet => json!({
                 "type": "OpHasAttr",
-                "subject": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "path": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "subject": parsed_type_to_json(bin_op.lhs()),
+                "path": parsed_type_to_json(bin_op.rhs()),
             }),
             BinOpKind::Update => json!({
                 "type": "OpUpdate",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             // The reference parser calls all addition "concat strings"
             BinOpKind::Add => json!({
                 "type": "ConcatStrings",
                 "force_string": false, // FIXME: I don't know what this is
                 "es": [
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
+                    parsed_type_to_json(bin_op.lhs()),
+                    parsed_type_to_json(bin_op.rhs()),
                 ],
             }),
             // The reference parser treats subtraction as a call to __sub
@@ -75,8 +77,8 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                     "value": "__sub",
                 },
                 "args": [
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
+                    parsed_type_to_json(bin_op.lhs()),
+                    parsed_type_to_json(bin_op.rhs()),
                 ]
             }),
             // The reference parser treats multiplication as a call to __mul
@@ -87,8 +89,8 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                     "value": "__mul",
                 },
                 "args": [
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
+                    parsed_type_to_json(bin_op.lhs()),
+                    parsed_type_to_json(bin_op.rhs()),
                 ]
             }),
             // The reference parser treats division as a call to __div
@@ -99,24 +101,24 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                     "value": "__div",
                 },
                 "args": [
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
+                    parsed_type_to_json(bin_op.lhs()),
+                    parsed_type_to_json(bin_op.rhs()),
                 ]
             }),
             BinOpKind::And => json!({
                 "type": "OpAnd",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             BinOpKind::Equal => json!({
                 "type": "OpEq",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             BinOpKind::Implication => json!({
                 "type": "OpImpl",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             // The reference parser treats less than as a call to __lessThan
             BinOpKind::Less => json!({
@@ -126,8 +128,8 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                     "value": "__lessThan",
                 },
                 "args": [
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
+                    parsed_type_to_json(bin_op.lhs()),
+                    parsed_type_to_json(bin_op.rhs()),
                 ]
             }),
             // The reference parser treats leq as negating a call to __lessThan with the args flipped
@@ -141,8 +143,8 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                     },
                     "args": [
                         // Note the argument order!
-                        nix_expr_to_json(parsed_type(bin_op.rhs())),
-                        nix_expr_to_json(parsed_type(bin_op.lhs())),
+                        parsed_type_to_json(bin_op.rhs()),
+                        parsed_type_to_json(bin_op.lhs()),
                     ],
                 },
             }),
@@ -155,8 +157,8 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                 },
                 "args": [
                     // Note the argument order!
-                    nix_expr_to_json(parsed_type(bin_op.rhs())),
-                    nix_expr_to_json(parsed_type(bin_op.lhs())),
+                    parsed_type_to_json(bin_op.rhs()),
+                    parsed_type_to_json(bin_op.lhs()),
                 ]
             }),
             // The reference parser treats gte as negating a call to __lessThan
@@ -169,35 +171,35 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                         "value": "__lessThan"
                     },
                     "args": [
-                        nix_expr_to_json(parsed_type(bin_op.lhs())),
-                        nix_expr_to_json(parsed_type(bin_op.rhs())),
+                        parsed_type_to_json(bin_op.lhs()),
+                        parsed_type_to_json(bin_op.rhs()),
                     ],
                 },
             }),
             BinOpKind::NotEqual => json!({
                 "type": "OpNEq",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
             BinOpKind::Or => json!({
                 "type": "OpOr",
-                "e1": nix_expr_to_json(parsed_type(bin_op.lhs())),
-                "e2": nix_expr_to_json(parsed_type(bin_op.rhs())),
+                "e1": parsed_type_to_json(bin_op.lhs()),
+                "e2": parsed_type_to_json(bin_op.rhs()),
             }),
         },
         ParsedType::OrDefault(_) => todo!(),
-        ParsedType::Paren(paren) => nix_expr_to_json(parsed_type(paren.inner())),
+        ParsedType::Paren(paren) => parsed_type_to_json(paren.inner()),
         ParsedType::PatBind(_) => todo!(),
         ParsedType::PatEntry(_) => todo!(),
         ParsedType::Pattern(_) => todo!(),
-        ParsedType::Root(_) => todo!(),
+        ParsedType::Root(root) => parsed_type_to_json(root.inner()),
         ParsedType::AttrSet(_) => todo!(),
         ParsedType::KeyValue(_) => todo!(),
         ParsedType::Str(_) => todo!(),
         ParsedType::UnaryOp(unary_op) => match unary_op.operator() {
             UnaryOpKind::Invert => json!({
                 "type": "OpNot",
-                "e": nix_expr_to_json(parsed_type(unary_op.value())),
+                "e": parsed_type_to_json(unary_op.value()),
             }),
             // The reference parser treats negation as subtraction from 0
             UnaryOpKind::Negate => json!({
@@ -207,7 +209,7 @@ fn nix_expr_to_json(nix_expr: ParsedType) -> serde_json::Value {
                         "type": "Int",
                         "value": 0,
                     },
-                    nix_expr_to_json(parsed_type(unary_op.value())),
+                    parsed_type_to_json(unary_op.value()),
                 ],
             }),
         },

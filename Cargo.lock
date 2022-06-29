@@ -70,6 +70,7 @@ name = "parser_tester"
 version = "0.1.0"
 dependencies = [
  "ref_impl_parser",
+ "rnix_to_json",
 ]
 
 [[package]]

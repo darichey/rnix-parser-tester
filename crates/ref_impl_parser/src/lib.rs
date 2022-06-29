@@ -12,12 +12,12 @@ impl Parser {
         Parser { ffi_parser }
     }
 
-    pub fn parse(&self, nix_expr: &str) -> &str {
+    pub fn parse(&self, nix_expr: &str) -> String {
         let nix_expr = CString::new(nix_expr).unwrap();
         let nix_expr = nix_expr.as_ptr();
         unsafe {
             let json_str = ffi::nix_expr_to_json_str(self.ffi_parser, nix_expr);
-            CStr::from_ptr(json_str).to_str().unwrap()
+            CStr::from_ptr(json_str).to_str().unwrap().to_string()
         }
     }
 }

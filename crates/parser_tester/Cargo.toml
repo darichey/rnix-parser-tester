@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 ref_impl_parser = { path = "../ref_impl_parser" }
+rnix_to_json = { path = "../rnix_to_json" }
