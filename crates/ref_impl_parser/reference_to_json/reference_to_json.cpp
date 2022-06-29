@@ -182,7 +182,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
         return {
             {"type", "With"},
             {"attrs", nix_expr_to_json(exprWith->attrs, symbols)},
-            {"attrs", nix_expr_to_json(exprWith->body, symbols)},
+            {"body", nix_expr_to_json(exprWith->body, symbols)},
         };
     }
     else if (auto exprIf = dynamic_cast<ExprIf *>(expr))
