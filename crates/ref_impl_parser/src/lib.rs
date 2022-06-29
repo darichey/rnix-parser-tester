@@ -39,7 +39,7 @@ mod tests {
         let json_str = parser.parse(nix_expr);
 
         assert_eq!(
-            r#"["Let",["Attrs",false,{"x":[false,["Int",3]]},[]],["Lambda","","y",null,["ConcatStrings",false,[["Var","x"],["Var","y"]]]]]"#,
+            r#"{"attrs":{"attrs":{"x":[false,{"type":"Int","value":3}]},"dynamic_attrs":[],"rec":false,"type":"Attrs"},"body":{"arg":"y","body":{"es":[{"type":"Var","value":"x"},{"type":"Var","value":"y"}],"force_string":false,"type":"ConcatStrings"},"formals":null,"name":"","type":"Lambda"},"type":"Let"}"#,
             json_str
         );
     }

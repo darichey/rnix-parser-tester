@@ -19,9 +19,25 @@ int main() {
     destroy_parser(parser);
 }
 ```
-Output:
-```
-["Call",["Var","__sub"],[["Int",1],["Int",1]]]
+```json
+$ ./example | jq
+{
+  "args": [
+    {
+      "type": "Int",
+      "value": 1
+    },
+    {
+      "type": "Int",
+      "value": 1
+    }
+  ],
+  "fun": {
+    "type": "Var",
+    "value": "__sub"
+  },
+  "type": "Call"
+}
 ```
 
 ## Build

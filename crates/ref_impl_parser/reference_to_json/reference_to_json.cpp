@@ -85,146 +85,192 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     }
     else if (auto exprInt = dynamic_cast<ExprInt *>(expr))
     {
-        return {"Int", exprInt->n};
+        return {
+            {"type", "Int"},
+            {"value", exprInt->n},
+        };
     }
     else if (auto exprFloat = dynamic_cast<ExprFloat *>(expr))
     {
-        return {"Float", exprFloat->nf};
+        return {
+            {"type", "Float"},
+            {"value", exprFloat->nf},
+        };
     }
     else if (auto exprString = dynamic_cast<ExprString *>(expr))
     {
-        return {"String", exprString->s};
+        return {
+            {"type", "String"},
+            {"value", exprString->s},
+        };
     }
     else if (auto exprPath = dynamic_cast<ExprPath *>(expr))
     {
-        return {"Path", exprPath->s};
+        return {
+            {"type", "Path"},
+            {"value", exprPath->s},
+        };
     }
     else if (auto exprVar = dynamic_cast<ExprVar *>(expr))
     {
-        return {"Var", symbols[exprVar->name]};
+        return {
+            {"type", "Var"},
+            {"value", symbols[exprVar->name]},
+        };
     }
     else if (auto exprSelect = dynamic_cast<ExprSelect *>(expr))
     {
         return {
-            "Select",
-            nix_expr_to_json(exprSelect->e, symbols),
-            nix_expr_to_json(exprSelect->def, symbols),
-            showAttrPath(symbols, exprSelect->attrPath),
+            {"type", "Select"},
+            {"subject", nix_expr_to_json(exprSelect->e, symbols)},
+            {"or_default", nix_expr_to_json(exprSelect->def, symbols)},
+            {"path", showAttrPath(symbols, exprSelect->attrPath)},
         };
     }
     else if (auto exprOpHasAttr = dynamic_cast<ExprOpHasAttr *>(expr))
     {
         return {
-            "OpHasAttr",
-            nix_expr_to_json(exprOpHasAttr->e, symbols),
-            showAttrPath(symbols, exprOpHasAttr->attrPath),
+            {"type", "OpHasAttr"},
+            {"subject", nix_expr_to_json(exprOpHasAttr->e, symbols)},
+            {"path", showAttrPath(symbols, exprOpHasAttr->attrPath)},
         };
     }
     else if (auto exprAttrs = dynamic_cast<ExprAttrs *>(expr))
     {
         return {
-            "Attrs",
-            exprAttrs->recursive,
-            attr_defs_to_json(exprAttrs->attrs, symbols),
-            dynamic_attr_defs_to_json(exprAttrs->dynamicAttrs, symbols),
+            {"type", "Attrs"},
+            {"rec", exprAttrs->recursive},
+            {"attrs", attr_defs_to_json(exprAttrs->attrs, symbols)},
+            {"dynamic_attrs", dynamic_attr_defs_to_json(exprAttrs->dynamicAttrs, symbols)},
         };
     }
     else if (auto exprList = dynamic_cast<ExprList *>(expr))
     {
         return {
-            "List",
-            nix_exprs_to_json(exprList->elems, symbols),
+            {"type", "List"},
+            {"elems", nix_exprs_to_json(exprList->elems, symbols)},
         };
     }
     else if (auto exprLambda = dynamic_cast<ExprLambda *>(expr))
     {
         return {
-            "Lambda",
-            exprLambda->name ? (std::string)symbols[exprLambda->name] : "",
-            exprLambda->arg ? (std::string)symbols[exprLambda->arg] : "",
-            formals_to_json(exprLambda->formals, symbols),
-            nix_expr_to_json(exprLambda->body, symbols),
+            {"type", "Lambda"},
+            {"name", exprLambda->name ? (std::string)symbols[exprLambda->name] : ""},
+            {"arg", exprLambda->arg ? (std::string)symbols[exprLambda->arg] : ""},
+            {"formals", formals_to_json(exprLambda->formals, symbols)},
+            {"body", nix_expr_to_json(exprLambda->body, symbols)},
         };
     }
     else if (auto exprCall = dynamic_cast<ExprCall *>(expr))
     {
         return {
-            "Call",
-            nix_expr_to_json(exprCall->fun, symbols),
-            nix_exprs_to_json(exprCall->args, symbols),
+            {"type", "Call"},
+            {"fun", nix_expr_to_json(exprCall->fun, symbols)},
+            {"args", nix_exprs_to_json(exprCall->args, symbols)},
         };
     }
     else if (auto exprLet = dynamic_cast<ExprLet *>(expr))
     {
         return {
-            "Let",
-            nix_expr_to_json(exprLet->attrs, symbols),
-            nix_expr_to_json(exprLet->body, symbols),
+            {"type", "Let"},
+            {"attrs", nix_expr_to_json(exprLet->attrs, symbols)},
+            {"body", nix_expr_to_json(exprLet->body, symbols)},
         };
     }
     else if (auto exprWith = dynamic_cast<ExprWith *>(expr))
     {
         return {
-            "With",
-            nix_expr_to_json(exprWith->attrs, symbols),
-            nix_expr_to_json(exprWith->body, symbols),
+            {"type", "With"},
+            {"attrs", nix_expr_to_json(exprWith->attrs, symbols)},
+            {"attrs", nix_expr_to_json(exprWith->body, symbols)},
         };
     }
     else if (auto exprIf = dynamic_cast<ExprIf *>(expr))
     {
         return {
-            "If",
-            nix_expr_to_json(exprIf->cond, symbols),
-            nix_expr_to_json(exprIf->then, symbols),
-            nix_expr_to_json(exprIf->else_, symbols),
+            {"type", "If"},
+            {"cond", nix_expr_to_json(exprIf->cond, symbols)},
+            {"then", nix_expr_to_json(exprIf->then, symbols)},
+            {"else", nix_expr_to_json(exprIf->else_, symbols)},
         };
     }
     else if (auto exprAssert = dynamic_cast<ExprAssert *>(expr))
     {
         return {
-            "Assert",
-            nix_expr_to_json(exprAssert->cond, symbols),
-            nix_expr_to_json(exprAssert->body, symbols),
+            {"type", "Assert"},
+            {"cond", nix_expr_to_json(exprAssert->cond, symbols)},
+            {"body", nix_expr_to_json(exprAssert->body, symbols)},
         };
     }
     else if (auto exprOpNot = dynamic_cast<ExprOpNot *>(expr))
     {
-        return {"OpNot", nix_expr_to_json(exprOpNot->e, symbols)};
+        return {
+            {"type", "OpNot"},
+            {"e", nix_expr_to_json(exprOpNot->e, symbols)},
+        };
     }
     else if (auto exprOpEq = dynamic_cast<ExprOpEq *>(expr))
     {
-        return {"OpEq", nix_expr_to_json(exprOpEq->e1, symbols), nix_expr_to_json(exprOpEq->e2, symbols)};
+        return {
+            {"type", "OpEq"},
+            {"e1", nix_expr_to_json(exprOpEq->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpEq->e2, symbols)},
+        };
     }
     else if (auto exprOpNEq = dynamic_cast<ExprOpNEq *>(expr))
     {
-        return {"OpNEq", nix_expr_to_json(exprOpNEq->e1, symbols), nix_expr_to_json(exprOpNEq->e2, symbols)};
+        return {
+            {"type", "OpNEq"},
+            {"e1", nix_expr_to_json(exprOpNEq->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpNEq->e2, symbols)},
+        };
     }
     else if (auto exprOpAnd = dynamic_cast<ExprOpAnd *>(expr))
     {
-        return {"OpAnd", nix_expr_to_json(exprOpAnd->e1, symbols), nix_expr_to_json(exprOpAnd->e2, symbols)};
+        return {
+            {"type", "OpAnd"},
+            {"e1", nix_expr_to_json(exprOpAnd->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpAnd->e2, symbols)},
+        };
     }
     else if (auto exprOpOr = dynamic_cast<ExprOpOr *>(expr))
     {
-        return {"OpOr", nix_expr_to_json(exprOpOr->e1, symbols), nix_expr_to_json(exprOpOr->e2, symbols)};
+        return {
+            {"type", "OpOr"},
+            {"e1", nix_expr_to_json(exprOpOr->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpOr->e2, symbols)},
+        };
     }
     else if (auto exprOpImpl = dynamic_cast<ExprOpImpl *>(expr))
     {
-        return {"OpImpl", nix_expr_to_json(exprOpImpl->e1, symbols), nix_expr_to_json(exprOpImpl->e2, symbols)};
+        return {
+            {"type", "OpImpl"},
+            {"e1", nix_expr_to_json(exprOpImpl->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpImpl->e2, symbols)},
+        };
     }
     else if (auto exprOpUpdate = dynamic_cast<ExprOpUpdate *>(expr))
     {
-        return {"OpUpdate", nix_expr_to_json(exprOpUpdate->e1, symbols), nix_expr_to_json(exprOpUpdate->e2, symbols)};
+        return {
+            {"type", "OpUpdate"},
+            {"e1", nix_expr_to_json(exprOpUpdate->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpUpdate->e2, symbols)},
+        };
     }
     else if (auto exprOpConcatLists = dynamic_cast<ExprOpConcatLists *>(expr))
     {
-        return {"OpConcatLists", nix_expr_to_json(exprOpConcatLists->e1, symbols), nix_expr_to_json(exprOpConcatLists->e2, symbols)};
+        return {
+            {"type", "OpConcatLists"},
+            {"e1", nix_expr_to_json(exprOpConcatLists->e1, symbols)},
+            {"e2", nix_expr_to_json(exprOpConcatLists->e2, symbols)},
+        };
     }
     else if (auto exprConcatStrings = dynamic_cast<ExprConcatStrings *>(expr))
     {
         return {
-            "ConcatStrings",
-            exprConcatStrings->forceString,
-            string_concat_exprs_to_json(exprConcatStrings->es, symbols),
+            {"type", "ConcatStrings"},
+            {"force_string", exprConcatStrings->forceString},
+            {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
         };
     }
     else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
@@ -239,7 +285,8 @@ struct Parser
 {
     EvalState *state;
 
-    ~Parser() {
+    ~Parser()
+    {
         delete state;
     }
 };

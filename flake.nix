@@ -17,6 +17,9 @@
           pkgs.nix
           pkgs.nix.dev
           pkgs.boost
+
+          # Useful for viewing JSON AST
+          pkgs.jq
         ];
       };
     };
