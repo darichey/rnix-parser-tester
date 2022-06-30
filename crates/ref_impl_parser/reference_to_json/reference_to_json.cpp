@@ -50,16 +50,19 @@ nlohmann::json formals_to_json(Formals *formals, const SymbolTable &symbols)
         return nullptr;
     }
 
-    auto res = nlohmann::json::array();
+    auto entries = nlohmann::json::array();
     for (const auto formal : formals->formals)
     {
-        res.push_back({
-            symbols[formal.name],
-            nix_expr_to_json(formal.def, symbols),
+        entries.push_back({
+            {"name", symbols[formal.name]},
+            {"default", nix_expr_to_json(formal.def, symbols)},
         });
     }
 
-    return {formals->ellipsis, res};
+    return {
+        {"ellipsis", formals->ellipsis},
+        {"entries", entries},
+    };
 }
 
 nlohmann::json nix_exprs_to_json(std::vector<Expr *> exprs, const SymbolTable &symbols)
@@ -159,10 +162,16 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     }
     else if (auto exprLambda = dynamic_cast<ExprLambda *>(expr))
     {
+        nlohmann::json arg(nullptr);
+        if (exprLambda->arg) {
+            arg = (std::string)symbols[exprLambda->arg];
+        }
+
         return {
             {"type", "Lambda"},
-            {"name", exprLambda->name ? (std::string)symbols[exprLambda->name] : ""},
-            {"arg", exprLambda->arg ? (std::string)symbols[exprLambda->arg] : ""},
+            // TODO: decide if this is important. It seems unlikely that we can easily get this on the rnix side
+            // {"name", exprLambda->name ? (std::string)symbols[exprLambda->name] : ""},
+            {"arg", arg},
             {"formals", formals_to_json(exprLambda->formals, symbols)},
             {"body", nix_expr_to_json(exprLambda->body, symbols)},
         };

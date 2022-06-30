@@ -1,7 +1,10 @@
 use core::panic;
 
 use rnix::{
-    types::{BinOpKind, ParsedType, Select, TokenWrapper, TypedNode, UnaryOpKind, Wrapper, EntryHolder, KeyValue},
+    types::{
+        BinOpKind, EntryHolder, Ident, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
+        TypedNode, UnaryOpKind, Wrapper,
+    },
     NixValue, StrPart, SyntaxNode,
 };
 use serde_json::json;
@@ -49,29 +52,54 @@ fn select_to_json(select: Select) -> serde_json::Value {
     })
 }
 
-// fn key_value_to_json(kv: KeyValue) -> serde_json::Value {
-//     json!({
-//         "key": kv.key().unwrap().path().map(|item| parsed_type_to_json(Some(item))).collect::<serde_json::Value>(),
-//         "value": parsed_type_to_json(kv.value()),
-//     })
-// }
+fn lambda_to_json(lambda: Lambda) -> serde_json::Value {
+    let arg_node = ParsedType::try_from(lambda.arg().unwrap()).unwrap();
+
+    let (arg, formals): (Option<String>, Option<serde_json::Value>) = match arg_node {
+        ParsedType::Ident(ident) => (Some(ident.as_str().to_string()), None),
+        ParsedType::Pattern(pattern) => {
+            let arg = pattern.at().map(|ident| ident.as_str().to_string());
+            let formals = json!({
+                "ellipsis": pattern.ellipsis(),
+                "entries": pattern.entries().map(|entry| {
+                    json!({
+                        "name": entry.name().unwrap().as_str(),
+                        "default": parsed_type_to_json(entry.default()),
+                    })
+                }).collect::<serde_json::Value>(),
+            });
+            (arg, Some(formals))
+        }
+        _ => unreachable!(),
+    };
+
+    json!({
+        "type": "Lambda",
+        "arg": arg,
+        "formals": formals,
+        "body": parsed_type_to_json(lambda.body()),
+    })
+}
 
 fn entry_holder_to_json(entry_holder: &impl EntryHolder) -> serde_json::Value {
-    let attrs = entry_holder.entries().map(|entry| {
-        // TODO: compound keys (e.g., `x.y.z = "hello"`)
-        let key = entry.key().unwrap().path().next().unwrap();
-        let key = ParsedType::try_from(key).unwrap();
-        if let ParsedType::Ident(ident) = key {
-            let value = json!({
-                "e": parsed_type_to_json(entry.value()),
-                "inherited": false // TODO: inherits
-            });
-            (ident.as_str().to_string(), value)
-        } else {
-            // TODO: interpolated keys
-            todo!()
-        }
-    }).collect::<serde_json::Value>();
+    let attrs = entry_holder
+        .entries()
+        .map(|entry| {
+            // TODO: compound keys (e.g., `x.y.z = "hello"`)
+            let key = entry.key().unwrap().path().next().unwrap();
+            let key = ParsedType::try_from(key).unwrap();
+            if let ParsedType::Ident(ident) = key {
+                let value = json!({
+                    "e": parsed_type_to_json(entry.value()),
+                    "inherited": false // TODO: inherits
+                });
+                (ident.as_str().to_string(), value)
+            } else {
+                // TODO: interpolated keys
+                todo!()
+            }
+        })
+        .collect::<serde_json::Value>();
 
     json!({
         "type": "Attrs",
@@ -83,6 +111,10 @@ fn entry_holder_to_json(entry_holder: &impl EntryHolder) -> serde_json::Value {
 }
 
 fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
+    if nix_expr.is_none() {
+        return json!(null);
+    }
+
     let nix_expr = ParsedType::try_from(nix_expr.unwrap()).unwrap();
     match nix_expr {
         ParsedType::Apply(apply) => json!({
@@ -111,14 +143,17 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
         ParsedType::Select(select) => select_to_json(select),
         ParsedType::Inherit(_) => todo!(),
         ParsedType::InheritFrom(_) => todo!(),
-        ParsedType::Lambda(_) => todo!(),
+        ParsedType::Lambda(lambda) => lambda_to_json(lambda),
         ParsedType::LegacyLet(_) => todo!(),
         ParsedType::LetIn(let_in) => json!({
             "type": "Let",
             "attrs": entry_holder_to_json(&let_in),
             "body": parsed_type_to_json(let_in.body()),
         }),
-        ParsedType::List(_) => todo!(),
+        ParsedType::List(list) => json!({
+            "type": "List",
+            "elems": list.items().map(|node| parsed_type_to_json(Some(node))).collect::<serde_json::Value>(),
+        }),
         ParsedType::BinOp(bin_op) => match bin_op.operator().unwrap() {
             BinOpKind::Concat => json!({
                 "type": "OpConcatLists",

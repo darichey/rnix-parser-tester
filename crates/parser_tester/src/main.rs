@@ -5,11 +5,14 @@ fn main() {
     // let nix_expr = r#"let y = "y"; in { x = "hello"; }.x.${y} or "world""#;
     // let nix_expr = r#"{ x.y.z = "hello"; }"#;
 
-    let nix_expr = r#"{ x = 3; }"#;
+    // let nix_expr = r#"let f = inputs@{ x, ... }: x; in f"#;
+    let nix_expr = r#"let f = { x, y, ... }@inputs: x; in f"#;
 
-    let json_str = RefImplParser::new().parse(nix_expr);
-    println!("{json_str}");
+    let json_str1 = RefImplParser::new().parse(nix_expr);
+    println!("{json_str1}");
 
-    let json_str = rnix_parse(nix_expr);
-    println!("{json_str}");
+    let json_str2 = rnix_parse(nix_expr);
+    println!("{json_str2}");
+
+    println!("{}", json_str1 == json_str2);
 }
