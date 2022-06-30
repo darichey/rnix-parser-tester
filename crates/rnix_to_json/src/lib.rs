@@ -2,8 +2,8 @@ use core::panic;
 
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, Ident, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
-        TypedNode, UnaryOpKind, Wrapper,
+        AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
+        UnaryOpKind, Wrapper,
     },
     NixValue, StrPart, SyntaxNode,
 };
@@ -81,33 +81,61 @@ fn lambda_to_json(lambda: Lambda) -> serde_json::Value {
     })
 }
 
-fn entry_holder_to_json(entry_holder: &impl EntryHolder) -> serde_json::Value {
-    let attrs = entry_holder
-        .entries()
-        .map(|entry| {
-            // TODO: compound keys (e.g., `x.y.z = "hello"`)
-            let key = entry.key().unwrap().path().next().unwrap();
-            let key = ParsedType::try_from(key).unwrap();
-            if let ParsedType::Ident(ident) = key {
-                let value = json!({
-                    "e": parsed_type_to_json(entry.value()),
-                    "inherited": false // TODO: inherits
-                });
-                (ident.as_str().to_string(), value)
-            } else {
-                // TODO: interpolated keys
-                todo!()
-            }
-        })
-        .collect::<serde_json::Value>();
-
+fn attr_set_parts_to_json(
+    attrs: serde_json::Value,
+    dynamic_attrs: serde_json::Value,
+    rec: bool,
+) -> serde_json::Value {
     json!({
         "type": "Attrs",
         "attrs": attrs,
-        // TODO: dynamic attrs
-        "dynamic_attrs": [],
-        "rec": false,
+        "dynamic_attrs": dynamic_attrs,
+        "rec": rec,
     })
+}
+
+fn attr_set_to_json(attr_set: AttrSet) -> serde_json::Value {
+    entry_holder_to_json(&attr_set, attr_set.recursive())
+}
+
+// Also implements normalizing compound keys (e.g., `x.y.z = "hello"` <=> `x = { y = { z = "hello" }}), because the reference impl does this at the parser level
+fn attr_set_entry_to_json(entry: KeyValue) -> (String, serde_json::Value) {
+    let mut path = entry.key().unwrap().path().collect::<Vec<SyntaxNode>>();
+
+    let mut key = match ParsedType::try_from(path.pop().unwrap()).unwrap() {
+        ParsedType::Ident(ident) => ident.as_str().to_string(),
+        _ => todo!(),
+    };
+
+    let mut value = json!({
+        "e": parsed_type_to_json(entry.value()),
+        "inherited": false,
+    });
+
+    while let Some(node) = path.pop() {
+        value = json!({
+            // TODO: is it possible to have inherited, dynamic attrs, or rec in this case?
+            "e": attr_set_parts_to_json(json!({ key: value }), json!([]), false),
+            "inherited": false,
+        });
+
+        key = match ParsedType::try_from(node).unwrap() {
+            ParsedType::Ident(ident) => ident.as_str().to_string(),
+            _ => todo!(),
+        };
+    }
+
+    (key, value)
+}
+
+fn entry_holder_to_json(entry_holder: &impl EntryHolder, rec: bool) -> serde_json::Value {
+    let attrs = entry_holder
+        .entries()
+        .map(attr_set_entry_to_json)
+        .collect::<serde_json::Value>();
+
+    // TODO: dynamic attrs
+    attr_set_parts_to_json(attrs, json!([]), rec)
 }
 
 fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
@@ -147,7 +175,7 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
         ParsedType::LegacyLet(_) => todo!(),
         ParsedType::LetIn(let_in) => json!({
             "type": "Let",
-            "attrs": entry_holder_to_json(&let_in),
+            "attrs": entry_holder_to_json(&let_in, false), // TODO: can let be rec?
             "body": parsed_type_to_json(let_in.body()),
         }),
         ParsedType::List(list) => json!({
@@ -308,7 +336,7 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
         ParsedType::PatEntry(_) => todo!(),
         ParsedType::Pattern(_) => todo!(),
         ParsedType::Root(root) => parsed_type_to_json(root.inner()),
-        ParsedType::AttrSet(attr_set) => entry_holder_to_json(&attr_set),
+        ParsedType::AttrSet(attr_set) => attr_set_to_json(attr_set),
         ParsedType::KeyValue(_) => todo!(),
         ParsedType::Str(str) => string_parts_to_json(str.parts()),
         ParsedType::UnaryOp(unary_op) => match unary_op.operator() {

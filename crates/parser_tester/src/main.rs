@@ -6,7 +6,7 @@ fn main() {
     // let nix_expr = r#"{ x.y.z = "hello"; }"#;
 
     // let nix_expr = r#"let f = inputs@{ x, ... }: x; in f"#;
-    let nix_expr = r#"let f = { x, y, ... }@inputs: x; in f"#;
+    let nix_expr = r#"{ x.y.z = "hello"; }"#;
 
     let json_str1 = RefImplParser::new().parse(nix_expr);
     println!("{json_str1}");
