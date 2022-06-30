@@ -86,6 +86,30 @@ nlohmann::json string_concat_exprs_to_json(std::vector<std::pair<PosIdx, Expr *>
     return nix_exprs_to_json(res, symbols);
 }
 
+nlohmann::json attr_path_to_json(AttrPath attrPath, const SymbolTable &symbols)
+{
+    auto res = nlohmann::json::array();
+    for (const auto attr : attrPath)
+    {
+        if (attr.symbol)
+        {
+            res.push_back({
+                {"attr_type", "Symbol"},
+                {"attr", symbols[attr.symbol]},
+            });
+        }
+        else
+        {
+            res.push_back({
+                {"attr_type", "Expr"},
+                {"attr", nix_expr_to_json(attr.expr, symbols)},
+            });
+        }
+        // res.push_back(nix_expr_to_json(expr, symbols));
+    }
+    return res;
+}
+
 nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
 {
     if (expr == nullptr)
@@ -133,7 +157,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
             {"type", "Select"},
             {"subject", nix_expr_to_json(exprSelect->e, symbols)},
             {"or_default", nix_expr_to_json(exprSelect->def, symbols)},
-            {"path", showAttrPath(symbols, exprSelect->attrPath)},
+            {"path", attr_path_to_json(exprSelect->attrPath, symbols)},
         };
     }
     else if (auto exprOpHasAttr = dynamic_cast<ExprOpHasAttr *>(expr))
@@ -163,7 +187,8 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     else if (auto exprLambda = dynamic_cast<ExprLambda *>(expr))
     {
         nlohmann::json arg(nullptr);
-        if (exprLambda->arg) {
+        if (exprLambda->arg)
+        {
             arg = (std::string)symbols[exprLambda->arg];
         }
 

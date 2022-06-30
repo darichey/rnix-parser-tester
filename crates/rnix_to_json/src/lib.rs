@@ -3,9 +3,9 @@ use core::panic;
 use rnix::{
     types::{
         AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
-        UnaryOpKind, Wrapper,
+        UnaryOpKind, Wrapper, TypedNode,
     },
-    NixValue, StrPart, SyntaxNode,
+    NixValue, StrPart, SyntaxNode, WalkEvent,
 };
 use serde_json::json;
 
@@ -43,12 +43,43 @@ fn string_parts_to_json(parts: Vec<StrPart>) -> serde_json::Value {
     }
 }
 
-fn select_to_json(select: Select) -> serde_json::Value {
+// FIXME: this is the worst thing I have ever seen
+// The reference impl squashes nested select nodes
+fn select_to_json(mut select: Select) -> serde_json::Value {
+    let mut path: Vec<serde_json::Value> = vec![];
+
+    let index = ParsedType::try_from(select.index().unwrap()).unwrap();
+    if let ParsedType::Ident(ident) = index {
+        path.push(json!({
+            "attr_type": "Symbol",
+            "attr": ident.as_str(),
+        }));
+    } else {
+        // TODO: interpolated keys
+        todo!();
+    }
+    
+    let mut set = select.set().unwrap();
+    while let ParsedType::Select(nested_select) = ParsedType::try_from(set).unwrap() {
+        let index = ParsedType::try_from(nested_select.index().unwrap()).unwrap();
+        if let ParsedType::Ident(ident) = index {
+            path.push(json!({
+                "attr_type": "Symbol",
+                "attr": ident.as_str(),
+            }));
+        } else {
+            // TODO: interpolated keys
+            todo!();
+        }
+        set = nested_select.set().unwrap();
+        select = nested_select;
+    }
+
     json!({
         "type": "Select",
         "subject": parsed_type_to_json(select.set()),
         "or_default": null,
-        "path": parsed_type_to_json(select.index()),
+        "path": path.into_iter().rev().collect::<serde_json::Value>(),
     })
 }
 
