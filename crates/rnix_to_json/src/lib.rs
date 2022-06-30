@@ -1,14 +1,85 @@
 use core::panic;
 
 use rnix::{
-    types::{BinOpKind, ParsedType, TokenWrapper, UnaryOpKind, Wrapper},
-    NixValue, SyntaxNode,
+    types::{BinOpKind, ParsedType, Select, TokenWrapper, TypedNode, UnaryOpKind, Wrapper, EntryHolder, KeyValue},
+    NixValue, StrPart, SyntaxNode,
 };
 use serde_json::json;
 
 pub fn nix_expr_to_json(nix_expr: &str) -> String {
     let nix_expr = rnix::parse(nix_expr).root().inner();
     parsed_type_to_json(nix_expr).to_string()
+
+    // let nix_expr = rnix::parse(nix_expr).root();
+    // nix_expr.dump().to_string()
+}
+
+fn string_parts_to_json(parts: Vec<StrPart>) -> serde_json::Value {
+    // If any of the parts are Ast, then this string has interoplations in it
+    if parts.iter().any(|part| matches!(part, StrPart::Ast(_))) {
+        // The reference impl treats string interpolation as string concatenation with force_string: true
+        json!({
+            "type": "ConcatStrings",
+            "force_string": true,
+            "es": parts.into_iter().map(|part| match part {
+                StrPart::Literal(lit) => json!({
+                    "type": "String",
+                    "value": lit,
+                }),
+                StrPart::Ast(node) => parsed_type_to_json(Some(node)),
+            }).collect::<serde_json::Value>()
+        })
+    // otherwise, there should only be one part which is a literal
+    } else if let Some(StrPart::Literal(lit)) = parts.get(0) {
+        json!({
+            "type": "String",
+            "value": lit,
+        })
+    } else {
+        unreachable!()
+    }
+}
+
+fn select_to_json(select: Select) -> serde_json::Value {
+    json!({
+        "type": "Select",
+        "subject": parsed_type_to_json(select.set()),
+        "or_default": null,
+        "path": parsed_type_to_json(select.index()),
+    })
+}
+
+// fn key_value_to_json(kv: KeyValue) -> serde_json::Value {
+//     json!({
+//         "key": kv.key().unwrap().path().map(|item| parsed_type_to_json(Some(item))).collect::<serde_json::Value>(),
+//         "value": parsed_type_to_json(kv.value()),
+//     })
+// }
+
+fn entry_holder_to_json(entry_holder: &impl EntryHolder) -> serde_json::Value {
+    let attrs = entry_holder.entries().map(|entry| {
+        // TODO: compound keys (e.g., `x.y.z = "hello"`)
+        let key = entry.key().unwrap().path().next().unwrap();
+        let key = ParsedType::try_from(key).unwrap();
+        if let ParsedType::Ident(ident) = key {
+            let value = json!({
+                "e": parsed_type_to_json(entry.value()),
+                "inherited": false // TODO: inherits
+            });
+            (ident.as_str().to_string(), value)
+        } else {
+            // TODO: interpolated keys
+            todo!()
+        }
+    }).collect::<serde_json::Value>();
+
+    json!({
+        "type": "Attrs",
+        "attrs": attrs,
+        // TODO: dynamic attrs
+        "dynamic_attrs": [],
+        "rec": false,
+    })
 }
 
 fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
@@ -37,12 +108,16 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
             "then": parsed_type_to_json(if_else.body()),
             "else": parsed_type_to_json(if_else.else_body()),
         }),
-        ParsedType::Select(_) => todo!(),
+        ParsedType::Select(select) => select_to_json(select),
         ParsedType::Inherit(_) => todo!(),
         ParsedType::InheritFrom(_) => todo!(),
         ParsedType::Lambda(_) => todo!(),
         ParsedType::LegacyLet(_) => todo!(),
-        ParsedType::LetIn(_) => todo!(),
+        ParsedType::LetIn(let_in) => json!({
+            "type": "Let",
+            "attrs": entry_holder_to_json(&let_in),
+            "body": parsed_type_to_json(let_in.body()),
+        }),
         ParsedType::List(_) => todo!(),
         ParsedType::BinOp(bin_op) => match bin_op.operator().unwrap() {
             BinOpKind::Concat => json!({
@@ -187,15 +262,20 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
                 "e2": parsed_type_to_json(bin_op.rhs()),
             }),
         },
-        ParsedType::OrDefault(_) => todo!(),
+        // The reference parser merges the Select and OrDefault nodes
+        ParsedType::OrDefault(or_default) => {
+            let mut select = select_to_json(or_default.index().unwrap());
+            select["or_default"] = parsed_type_to_json(or_default.default());
+            select
+        },
         ParsedType::Paren(paren) => parsed_type_to_json(paren.inner()),
         ParsedType::PatBind(_) => todo!(),
         ParsedType::PatEntry(_) => todo!(),
         ParsedType::Pattern(_) => todo!(),
         ParsedType::Root(root) => parsed_type_to_json(root.inner()),
-        ParsedType::AttrSet(_) => todo!(),
+        ParsedType::AttrSet(attr_set) => entry_holder_to_json(&attr_set),
         ParsedType::KeyValue(_) => todo!(),
-        ParsedType::Str(_) => todo!(),
+        ParsedType::Str(str) => string_parts_to_json(str.parts()),
         ParsedType::UnaryOp(unary_op) => match unary_op.operator() {
             UnaryOpKind::Invert => json!({
                 "type": "OpNot",

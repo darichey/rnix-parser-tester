@@ -22,7 +22,10 @@ nlohmann::json attr_defs_to_json(ExprAttrs::AttrDefs attrDefs, const SymbolTable
     auto res = nlohmann::json::object();
     for (const auto &[key, value] : attrDefs)
     {
-        res[symbols[key]] = {value.inherited, nix_expr_to_json(value.e, symbols)};
+        res[symbols[key]] = {
+            {"inherited", value.inherited},
+            {"e", nix_expr_to_json(value.e, symbols)},
+        };
     }
     return res;
 }
@@ -32,7 +35,10 @@ nlohmann::json dynamic_attr_defs_to_json(ExprAttrs::DynamicAttrDefs attrDefs, co
     auto res = nlohmann::json::array();
     for (const auto &attr : attrDefs)
     {
-        res.push_back({nix_expr_to_json(attr.nameExpr, symbols), nix_expr_to_json(attr.valueExpr, symbols)});
+        res.push_back({
+            {"name_expr", nix_expr_to_json(attr.nameExpr, symbols)},
+            {"value_expr", nix_expr_to_json(attr.valueExpr, symbols)},
+        });
     }
     return res;
 }
