@@ -3,8 +3,8 @@ use std::{fs, path::PathBuf};
 
 use rnix::{
     types::{
-        Apply, AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
-        UnaryOpKind, Wrapper,
+        Apply, AttrSet, BinOpKind, EntryHolder, Inherit, KeyValue, Lambda, ParsedType, Select,
+        TokenWrapper, UnaryOpKind, Wrapper,
     },
     value::Anchor,
     NixValue, StrPart, SyntaxNode,
@@ -183,15 +183,55 @@ impl Parser {
         (key, value)
     }
 
+    fn inherit_to_json(&self, inherit: Inherit) -> Vec<(String, serde_json::Value)> {
+        inherit
+            .idents()
+            .map(|ident| {
+                let value = if let Some(from) = inherit.from() {
+                    json!({
+                        "e": {
+                            "type": "Select",
+                            "subject": self.parsed_type_to_json(from.inner()),
+                            "or_default": null,
+                            "path": [
+                                {
+                                    "attr_type": "Symbol",
+                                    "attr": ident.as_str(),
+                                },
+                            ],
+                        },
+                        "inherited": false, // TODO: really?
+                    })
+                } else {
+                    json!({
+                        "e": {
+                            "type": "Var",
+                            "value": ident.as_str(),
+                        },
+                        "inherited": true,
+                    })
+                };
+
+                (ident.as_str().to_string(), value)
+            })
+            .collect()
+        // }
+    }
+
     fn entry_holder_to_json(
         &self,
         entry_holder: &impl EntryHolder,
         rec: bool,
     ) -> serde_json::Value {
         let attrs = entry_holder
-            .entries()
-            .map(|entry| self.attr_set_entry_to_json(entry))
-            .collect::<serde_json::Value>();
+            .node()
+            .children()
+            .flat_map(|child| match ParsedType::try_from(child).unwrap() {
+                ParsedType::KeyValue(entry) => vec![self.attr_set_entry_to_json(entry)],
+                ParsedType::Inherit(inherit) => self.inherit_to_json(inherit),
+                _ => unreachable!(),
+            })
+            .collect();
 
         // TODO: dynamic attrs
         self.attr_set_parts_to_json(attrs, json!([]), rec)
