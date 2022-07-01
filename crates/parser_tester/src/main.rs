@@ -8,7 +8,7 @@ fn main() {
     // let nix_expr = r#"{ x.y.z = "hello"; }"#;
 
     // let nix_expr = r#"let f = inputs@{ x, ... }: x; in f"#;
-    // let nix_expr = r#"{ nixpkgs }: nixpkgs.legacyPackages.x86_64-linux"#;
+    // let nix_expr = r#"pkgs: with {}; {}"#;
 
     let nix_expr = fs::read_to_string("./flake.nix").unwrap();
     let nix_expr = &nix_expr;

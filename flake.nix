@@ -6,20 +6,20 @@
     in
     {
       devShells.x86_64-linux.default = pkgs.mkShell {
-        buildInputs = [
+        buildInputs = with pkgs; [
           # Rust dev
-          pkgs.rustc
-          pkgs.cargo
-          pkgs.rust-analyzer
-          pkgs.rustfmt
+          rustc
+          cargo
+          rust-analyzer
+          rustfmt
 
           # C/C++ dev
-          pkgs.nix
-          pkgs.nix.dev
-          pkgs.boost
+          nix
+          nix.dev
+          boost
 
           # Useful for viewing JSON AST
-          pkgs.jq
+          jq
         ];
       };
     };

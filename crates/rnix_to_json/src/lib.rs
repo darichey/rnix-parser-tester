@@ -3,7 +3,7 @@ use core::panic;
 use rnix::{
     types::{
         AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
-        UnaryOpKind, Wrapper, TypedNode,
+        TypedNode, UnaryOpKind, Wrapper,
     },
     NixValue, StrPart, SyntaxNode, WalkEvent,
 };
@@ -58,7 +58,7 @@ fn select_to_json(mut select: Select) -> serde_json::Value {
         // TODO: interpolated keys
         todo!();
     }
-    
+
     let mut set = select.set().unwrap();
     while let ParsedType::Select(nested_select) = ParsedType::try_from(set).unwrap() {
         let index = ParsedType::try_from(nested_select.index().unwrap()).unwrap();
@@ -402,7 +402,11 @@ fn parsed_type_to_json(nix_expr: Option<SyntaxNode>) -> serde_json::Value {
             }),
             NixValue::Path(_, _) => todo!(),
         },
-        ParsedType::With(_) => todo!(),
+        ParsedType::With(with) => json!({
+            "type": "With",
+            "attrs": parsed_type_to_json(with.namespace()),
+            "body": parsed_type_to_json(with.body()),
+        }),
         ParsedType::PathWithInterpol(_) => todo!(),
     }
 }
