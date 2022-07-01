@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 
 use rnix::{
     types::{
-        AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
+        Apply, AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
         UnaryOpKind, Wrapper,
     },
     value::Anchor,
@@ -197,6 +197,25 @@ impl Parser {
         self.attr_set_parts_to_json(attrs, json!([]), rec)
     }
 
+    fn apply_to_json(&self, apply: Apply) -> serde_json::Value {
+        // The reference impl squashes nested Call nodes, collecting function arguments into a single list
+        let mut args: Vec<serde_json::Value> = vec![self.parsed_type_to_json(apply.value())];
+        let mut value = apply.lambda().unwrap();
+
+        while let ParsedType::Apply(nested_apply) = ParsedType::try_from(value.clone()).unwrap() {
+            args.push(self.parsed_type_to_json(nested_apply.value()));
+            value = nested_apply.lambda().unwrap();
+        }
+
+        args.reverse();
+
+        json!({
+            "type": "Call",
+            "fun": self.parsed_type_to_json(Some(value)),
+            "args": args,
+        })
+    }
+
     fn parsed_type_to_json(&self, nix_expr: Option<SyntaxNode>) -> serde_json::Value {
         if nix_expr.is_none() {
             return json!(null);
@@ -204,11 +223,7 @@ impl Parser {
 
         let nix_expr = ParsedType::try_from(nix_expr.unwrap()).unwrap();
         match nix_expr {
-            ParsedType::Apply(apply) => json!({
-                "type": "Call",
-                "fun": self.parsed_type_to_json(apply.lambda()),
-                "args": [ self.parsed_type_to_json(apply.value()) ], // FIXME: the reference parser collects all function arguments into a single Call node
-            }),
+            ParsedType::Apply(apply) => self.apply_to_json(apply),
             ParsedType::Assert(assert) => json!({
                 "type": "Assert",
                 "cond": self.parsed_type_to_json(assert.condition()),
