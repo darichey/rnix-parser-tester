@@ -67,8 +67,7 @@ impl Parser {
     }
 
     // FIXME: this is the worst thing I have ever seen
-    // The reference impl squashes nested select nodes
-    fn select_to_json(&self, mut select: Select) -> serde_json::Value {
+    fn squash_selects(&self, mut select: Select) -> (Select, Vec<serde_json::Value>) {
         let mut path: Vec<serde_json::Value> = vec![];
 
         let index = ParsedType::try_from(select.index().unwrap()).unwrap();
@@ -98,11 +97,20 @@ impl Parser {
             select = nested_select;
         }
 
+        path.reverse();
+
+        (select, path)
+    }
+
+    fn select_to_json(&self, select: Select) -> serde_json::Value {
+        // The reference impl squashes nested select nodes
+        let (select, path) = self.squash_selects(select);
+
         json!({
             "type": "Select",
             "subject": self.parsed_type_to_json(select.set()),
             "or_default": null,
-            "path": path.into_iter().rev().collect::<serde_json::Value>(),
+            "path": path,
         })
     }
 
