@@ -451,7 +451,7 @@ impl Parser {
                     }),
                     Anchor::Relative => json!({
                         "type": "Path",
-                        "value": format!("{}/{}", self.base_path, s.strip_prefix("./").unwrap_or(&s)),
+                        "value": format!("{}{}", self.base_path, s.strip_prefix("./.").or(s.strip_prefix("./")).unwrap_or(&s)),
                     }),
                     Anchor::Home => json!({
                         "type": "Path",
