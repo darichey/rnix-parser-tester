@@ -1,25 +1,33 @@
-use std::fs;
+use std::env;
 
 use ref_impl_parser::Parser as RefImplParser;
 use rnix_to_json::Parser as RnixParser;
 
 fn main() {
-    // let nix_expr = r#"let y = "y"; in { x = "hello"; }.x.${y} or "world""#;
-    // let nix_expr = r#"{ x.y.z = "hello"; }"#;
+    let nix_exprs = [
+        "x: ./foo/bar",
+        "x: foo/bar/bar",
+        "x: /foo/bar",
+        "x: ~/foo/bar",
+        "x: <foo/bar>",
+    ];
 
-    // let nix_expr = r#"let f = inputs@{ x, ... }: x; in f"#;
-    // let nix_expr = r#"pkgs: with {}; {}"#;
+    for expr in nix_exprs {
+        println!("===========================================");
 
-    let nix_expr = fs::read_to_string("./flake.nix").unwrap();
-    let nix_expr = &nix_expr;
+        println!("{expr}");
 
-    let json_str1 = RefImplParser::new().parse(nix_expr);
-    println!("{json_str1}");
+        println!("------------");
 
-    println!("===========================================");
+        let json_str1 = RefImplParser::new().parse(expr);
+        println!("{json_str1}");
 
-    let json_str2 = RnixParser::new(".".to_string()).parse(nix_expr);
-    println!("{json_str2}");
+        let json_str2 = RnixParser::new(".", env::var("HOME").unwrap()).parse(expr);
+        println!("{json_str2}");
 
-    println!("{}", json_str1 == json_str2);
+        println!("------------");
+
+        println!("{}", json_str1 == json_str2);
+        println!("===========================================");
+    }
 }

@@ -1,22 +1,33 @@
 use core::panic;
-use std::path::Path;
+use std::{fs, path::PathBuf};
 
 use rnix::{
     types::{
         AttrSet, BinOpKind, EntryHolder, KeyValue, Lambda, ParsedType, Select, TokenWrapper,
-        TypedNode, UnaryOpKind, Wrapper,
+        UnaryOpKind, Wrapper,
     },
-    NixValue, StrPart, SyntaxNode, WalkEvent,
+    value::Anchor,
+    NixValue, StrPart, SyntaxNode,
 };
 use serde_json::json;
 
 pub struct Parser {
     base_path: String,
+    home_path: String,
 }
 
 impl Parser {
-    pub fn new(base_path: String) -> Self {
-        Self { base_path }
+    // FIXME: ugly, error handling
+    pub fn new(base_path: &str, home_path: String) -> Self {
+        let base_path = PathBuf::from(base_path);
+        Self {
+            base_path: fs::canonicalize(&base_path)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+            home_path,
+        }
     }
 
     pub fn parse(&self, nix_expr: &str) -> String {
@@ -170,7 +181,11 @@ impl Parser {
         (key, value)
     }
 
-    fn entry_holder_to_json(&self, entry_holder: &impl EntryHolder, rec: bool) -> serde_json::Value {
+    fn entry_holder_to_json(
+        &self,
+        entry_holder: &impl EntryHolder,
+        rec: bool,
+    ) -> serde_json::Value {
         let attrs = entry_holder
             .entries()
             .map(|entry| self.attr_set_entry_to_json(entry))
@@ -411,7 +426,38 @@ impl Parser {
                     "type": "String",
                     "value": s,
                 }),
-                NixValue::Path(_, _) => todo!(),
+                NixValue::Path(anchor, s) => match anchor {
+                    Anchor::Absolute => json!({
+                        "type": "Path",
+                        "value": s,
+                    }),
+                    Anchor::Relative => json!({
+                        "type": "Path",
+                        "value": format!("{}/{}", self.base_path, s.strip_prefix("./").unwrap_or(&s)),
+                    }),
+                    Anchor::Home => json!({
+                        "type": "Path",
+                        "value": format!("{}/{}", self.home_path, s),
+                    }),
+                    // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
+                    Anchor::Store => json!({
+                        "type": "Call",
+                        "fun": {
+                            "type": "Var",
+                            "value": "__findFile",
+                        },
+                        "args": [
+                            {
+                                "type": "Var",
+                                "value": "__nixPath",
+                            },
+                            {
+                                "type": "String",
+                                "value": s
+                            },
+                        ],
+                    }),
+                },
             },
             ParsedType::With(with) => json!({
                 "type": "With",
