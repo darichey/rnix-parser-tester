@@ -50,7 +50,9 @@ impl Parser {
                         "type": "String",
                         "value": lit,
                     }),
-                    StrPart::Ast(node) => self.parsed_type_to_json(Some(node)),
+                    StrPart::Ast(node) => {
+                        self.parsed_type_to_json(node.inner())
+                    },
                 }).collect::<serde_json::Value>()
             })
         // otherwise, there should only be one part which is a literal
@@ -396,7 +398,8 @@ impl Parser {
             ParsedType::AttrSet(attr_set) => self.attr_set_to_json(attr_set),
             ParsedType::KeyValue(_) => todo!(),
             ParsedType::Str(str) => self.string_parts_to_json(str.parts()),
-            ParsedType::UnaryOp(unary_op) => match unary_op.operator() {
+            ParsedType::StrInterpol(_) => todo!(),
+            ParsedType::UnaryOp(unary_op) => match unary_op.operator().unwrap() {
                 UnaryOpKind::Invert => json!({
                     "type": "OpNot",
                     "e": self.parsed_type_to_json(unary_op.value()),
