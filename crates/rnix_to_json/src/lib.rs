@@ -229,7 +229,7 @@ impl Parser {
             .flat_map(|child| match ParsedType::try_from(child).unwrap() {
                 ParsedType::KeyValue(entry) => vec![self.attr_set_entry_to_json(entry)],
                 ParsedType::Inherit(inherit) => self.inherit_to_json(inherit),
-                _ => unreachable!(),
+                _ => vec![],
             })
             .collect();
 
@@ -489,10 +489,19 @@ impl Parser {
                         "type": "Path",
                         "value": s,
                     }),
-                    Anchor::Relative => json!({
-                        "type": "Path",
-                        "value": format!("{}{}", self.base_path, s.strip_prefix("./.").or(s.strip_prefix("./")).unwrap_or(&s)),
-                    }),
+                    Anchor::Relative => {
+                        // FIXME: this certainly is not right
+                        let path = if s == "./." {
+                            "".to_string()
+                        } else {
+                            "/".to_string() + s.strip_prefix("./").unwrap_or(&s)
+                        };
+
+                        json!({
+                            "type": "Path",
+                            "value": format!("{}{}", self.base_path, path),
+                        })
+                    }
                     Anchor::Home => json!({
                         "type": "Path",
                         "value": format!("{}/{}", self.home_path, s),
