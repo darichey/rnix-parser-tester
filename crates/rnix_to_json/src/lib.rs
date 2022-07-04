@@ -1,3 +1,5 @@
+mod ast;
+
 use core::panic;
 use std::{fs, path::PathBuf};
 

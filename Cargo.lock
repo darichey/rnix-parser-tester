@@ -121,6 +121,7 @@ dependencies = [
 name = "rnix_to_json"
 version = "0.1.0"
 dependencies = [
+ "ast",
  "rnix",
  "serde_json",
 ]
