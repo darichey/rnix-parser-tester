@@ -24,7 +24,7 @@ nlohmann::json attr_defs_to_json(ExprAttrs::AttrDefs attrDefs, const SymbolTable
     {
         res[symbols[key]] = {
             {"inherited", value.inherited},
-            {"e", nix_expr_to_json(value.e, symbols)},
+            {"expr", nix_expr_to_json(value.e, symbols)},
         };
     }
     return res;

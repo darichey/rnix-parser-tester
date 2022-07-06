@@ -16,6 +16,8 @@ fn main() {
         let json_str1 = RefImplParser::new().parse(expr);
         println!("{json_str1}");
 
+        println!("------------");
+
         let json_str2 = rnix_parse(
             expr,
             env::current_dir()
