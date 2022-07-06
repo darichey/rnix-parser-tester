@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::ast::{AttrEntry, NixExpr, StrPart};
-use ast::{AttrDef, AttrName, AttrPath, NixExpr as NormalNixExpr};
+use crate::ast::{AttrEntry, LambdaArg, NixExpr, PatEntry, StrPart};
+use ast::{AttrDef, AttrName, AttrPath, Formal, Formals, NixExpr as NormalNixExpr};
 use rnix::{
     types::{BinOpKind, UnaryOpKind},
     value::Anchor,
@@ -37,7 +37,7 @@ impl Normalizer {
                 else_body,
             } => self.normalize_if_else(*condition, *body, *else_body),
             NixExpr::Select { set, index } => self.normalize_select(*set, *index, None),
-            NixExpr::Lambda { arg, body } => self.normalize_lambda(*arg, *body),
+            NixExpr::Lambda { arg, body } => self.normalize_lambda(arg, *body),
             NixExpr::LetIn { entries, body } => self.normalize_let_in(entries, *body),
             NixExpr::List(elems) => self.normalize_list(elems),
             NixExpr::BinOp { lhs, operator, rhs } => self.normalize_bin_op(*lhs, operator, *rhs),
@@ -124,10 +124,28 @@ impl Normalizer {
         }
     }
 
-    fn normalize_lambda(&self, arg: NixExpr, body: NixExpr) -> NormalNixExpr {
+    fn normalize_lambda(&self, arg: LambdaArg, body: NixExpr) -> NormalNixExpr {
         let (arg, formals) = match arg {
-            NixExpr::Ident(ident) => (Some(ident), None),
-            _ => todo!(), // TODO pattern
+            LambdaArg::Ident(ident) => (Some(ident), None),
+            LambdaArg::Pattern {
+                entries,
+                at,
+                ellipsis,
+            } => {
+                let formals = Formals {
+                    ellipsis,
+                    entries: entries
+                        .into_iter()
+                        .map(|entry| Formal {
+                            name: entry.name,
+                            default: entry.default.map(|default| self.normalize(default)),
+                        })
+                        .collect(),
+                };
+
+                (at, Some(formals))
+            }
+            _ => unreachable!(),
         };
 
         let body = self.boxed_normalize(body);

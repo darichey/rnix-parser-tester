@@ -82,7 +82,7 @@ pub struct AttrDef {
 #[derive(Clone, Serialize)]
 pub struct Formal {
     pub name: String,
-    pub default: NixExpr,
+    pub default: Option<NixExpr>,
 }
 
 #[derive(Clone, Serialize)]

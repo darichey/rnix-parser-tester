@@ -22,6 +22,20 @@ pub(crate) enum StrPart {
     Ast(NixExpr),
 }
 
+pub(crate) struct PatEntry {
+    pub name: String,
+    pub default: Option<NixExpr>,
+}
+
+pub(crate) enum LambdaArg {
+    Ident(String),
+    Pattern {
+        entries: Vec<PatEntry>,
+        at: Option<String>,
+        ellipsis: bool,
+    },
+}
+
 pub(crate) enum NixExpr {
     Apply {
         lambda: Box<NixExpr>,
@@ -42,7 +56,7 @@ pub(crate) enum NixExpr {
         index: Box<NixExpr>,
     },
     Lambda {
-        arg: Box<NixExpr>,
+        arg: LambdaArg,
         body: Box<NixExpr>,
     },
     LetIn {
@@ -148,10 +162,44 @@ impl TryFrom<ParsedType> for NixExpr {
             }),
             ParsedType::Inherit(_) => todo!(),
             ParsedType::InheritFrom(_) => todo!(),
-            ParsedType::Lambda(lambda) => Ok(NixExpr::Lambda {
-                arg: try_convert!(lambda.arg()),
-                body: try_convert!(lambda.body()),
-            }),
+            ParsedType::Lambda(lambda) => {
+                let arg = lambda
+                    .arg()
+                    .ok_or(ToAstError::EmptyBranch)
+                    .and_then(|arg| ParsedType::try_from(arg).map_err(ToAstError::ParsedTypeError))
+                    .and_then(|arg| {
+                        Ok(match arg {
+                            ParsedType::Ident(ident) => {
+                                LambdaArg::Ident(ident.as_str().to_string())
+                            }
+                            ParsedType::Pattern(pattern) => LambdaArg::Pattern {
+                                entries: pattern
+                                    .entries()
+                                    .map(|entry| {
+                                        Ok(PatEntry {
+                                            name: entry
+                                                .name()
+                                                .map(|ident| ident.as_str().to_string())
+                                                .ok_or(ToAstError::EmptyBranch)?,
+                                            default: entry
+                                                .default()
+                                                .map(|default| NixExpr::try_from(default))
+                                                .transpose()?,
+                                        })
+                                    })
+                                    .collect::<Result<Vec<_>, _>>()?,
+                                at: pattern.at().map(|ident| ident.as_str().to_string()),
+                                ellipsis: pattern.ellipsis(),
+                            },
+                            _ => unreachable!(),
+                        })
+                    })?;
+
+                Ok(NixExpr::Lambda {
+                    arg,
+                    body: try_convert!(lambda.body()),
+                })
+            }
             ParsedType::LegacyLet(_) => todo!(),
             ParsedType::LetIn(let_in) => Ok(NixExpr::LetIn {
                 entries: entries_from_holder(&let_in)?,
