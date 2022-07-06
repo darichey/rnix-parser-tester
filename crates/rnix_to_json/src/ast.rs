@@ -165,7 +165,7 @@ impl TryFrom<ParsedType> for NixExpr {
             }),
             ParsedType::Select(select) => Ok(NixExpr::Select {
                 set: try_convert!(select.set()),
-                index: try_convert!(select.set()),
+                index: try_convert!(select.index()),
             }),
             ParsedType::Inherit(_) => todo!(),
             ParsedType::InheritFrom(_) => todo!(),
