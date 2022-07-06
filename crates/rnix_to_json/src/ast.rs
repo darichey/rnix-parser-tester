@@ -3,7 +3,7 @@ use rnix::{
         BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind, Wrapper,
     },
     value::ValueError,
-    NixValue, StrPart, SyntaxNode, AST,
+    NixValue, SyntaxNode, AST,
 };
 
 pub(crate) enum AttrEntry {
@@ -15,6 +15,11 @@ pub(crate) enum AttrEntry {
         from: Option<Box<NixExpr>>,
         idents: Vec<String>,
     },
+}
+
+pub(crate) enum StrPart {
+    Literal(String),
+    Ast(NixExpr),
 }
 
 pub(crate) enum NixExpr {
@@ -192,7 +197,19 @@ impl TryFrom<ParsedType> for NixExpr {
             }
             ParsedType::KeyValue(_) => todo!(),
             ParsedType::Str(str) => {
-                let parts = str.parts();
+                let parts = str
+                    .parts()
+                    .into_iter()
+                    .map(|part| {
+                        Ok(match part {
+                            rnix::StrPart::Literal(literal) => StrPart::Literal(literal),
+                            rnix::StrPart::Ast(ast) => {
+                                StrPart::Ast(NixExpr::try_from(ast.inner())?)
+                            }
+                        })
+                    })
+                    .collect::<Result<Vec<StrPart>, ToAstError>>()?;
+
                 Ok(NixExpr::Str { parts })
             }
             ParsedType::StrInterpol(_) => todo!(),

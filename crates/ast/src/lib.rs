@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub enum NixExpr {
     Int(i64),
     Float(f64),
@@ -62,33 +62,33 @@ pub enum NixExpr {
     },
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub enum AttrName {
     Symbol(String),
     Expr(NixExpr),
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct AttrPath {
-    components: Vec<AttrName>,
+    pub components: Vec<AttrName>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct AttrDef {
-    inherited: bool,
-    expr: NixExpr,
+    pub inherited: bool,
+    pub expr: NixExpr,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Formal {
-    name: String,
-    default: NixExpr,
+    pub name: String,
+    pub default: NixExpr,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Formals {
-    ellipsis: bool,
-    entries: Vec<Formal>,
+    pub ellipsis: bool,
+    pub entries: Vec<Formal>,
 }
 
 #[cfg(test)]
@@ -99,7 +99,7 @@ mod tests {
     fn test() {
         let value = NixExpr::Assert {
             cond: Box::new(NixExpr::Int(3)),
-            body: Box::new(NixExpr::Int(3))
+            body: Box::new(NixExpr::Int(3)),
         };
         let json = serde_json::to_string(&value).unwrap();
         assert_eq!(json, "");
