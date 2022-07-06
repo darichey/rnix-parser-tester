@@ -1,11 +1,13 @@
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind, Wrapper,
+        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, TypedNode, UnaryOpKind,
+        Wrapper,
     },
     value::ValueError,
-    NixValue, SyntaxNode, AST,
+    NixValue, SyntaxKind, SyntaxNode, AST,
 };
 
+#[derive(Debug)]
 pub(crate) enum AttrEntry {
     KeyValue {
         key: Vec<NixExpr>,
@@ -17,16 +19,19 @@ pub(crate) enum AttrEntry {
     },
 }
 
+#[derive(Debug)]
 pub(crate) enum StrPart {
     Literal(String),
     Ast(NixExpr),
 }
 
+#[derive(Debug)]
 pub(crate) struct PatEntry {
     pub name: String,
     pub default: Option<NixExpr>,
 }
 
+#[derive(Debug)]
 pub(crate) enum LambdaArg {
     Ident(String),
     Pattern {
@@ -36,6 +41,7 @@ pub(crate) enum LambdaArg {
     },
 }
 
+#[derive(Debug)]
 pub(crate) enum NixExpr {
     Apply {
         lambda: Box<NixExpr>,
@@ -91,6 +97,7 @@ pub(crate) enum NixExpr {
     },
 }
 
+#[derive(Debug)]
 pub enum ToAstError {
     EmptyBranch,
     ParsedTypeError(ParsedTypeError),
@@ -270,7 +277,12 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
     entry_holder
         .node()
         .children()
-        .map(|child| match ParsedType::try_from(child).unwrap() {
+        // Ignore other children. e.g., a let node would have its body as a child too
+        .filter(|child| {
+            child.kind() == SyntaxKind::NODE_KEY_VALUE || child.kind() == SyntaxKind::NODE_INHERIT
+        })
+        .map(|child| ParsedType::try_from(child).map_err(ToAstError::ParsedTypeError))
+        .map(|child| match child? {
             ParsedType::KeyValue(entry) => Ok(AttrEntry::KeyValue {
                 key: entry.key().ok_or(ToAstError::EmptyBranch).and_then(|key| {
                     key.path()
@@ -289,7 +301,7 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
                     .map(|ident| ident.as_str().to_string())
                     .collect(),
             }),
-            _ => unreachable!(),
+            _ => unreachable!(), // Unreachable because of above filter
         })
         .collect::<Result<Vec<_>, _>>()
 }
