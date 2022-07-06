@@ -136,9 +136,10 @@ impl Normalizer {
     }
 
     fn normalize_let_in(&self, entries: Vec<AttrEntry>, body: NixExpr) -> NormalNixExpr {
-        let attrs = todo!();
-        let body = self.boxed_normalize(body);
-        NormalNixExpr::Let { attrs, body }
+        NormalNixExpr::Let {
+            attrs: Box::new(self.normalize_attr_set(entries, false)), // TODO: can let be rec?
+            body: self.boxed_normalize(body),
+        }
     }
 
     fn normalize_list(&self, elems: Vec<NixExpr>) -> NormalNixExpr {
