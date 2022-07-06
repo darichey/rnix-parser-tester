@@ -20,6 +20,7 @@ pub enum NixExpr {
     Attrs {
         rec: bool,
         attrs: HashMap<String, AttrDef>,
+        dynamic_attrs: Vec<DynamicAttrDef>,
     },
     List(Vec<NixExpr>),
     Lambda {
@@ -77,6 +78,12 @@ pub struct AttrPath {
 pub struct AttrDef {
     pub inherited: bool,
     pub expr: NixExpr,
+}
+
+#[derive(Clone, Serialize)]
+pub struct DynamicAttrDef {
+    pub name_expr: NixExpr,
+    pub value_expr: NixExpr,
 }
 
 #[derive(Clone, Serialize)]

@@ -261,6 +261,7 @@ impl Normalizer {
         NormalNixExpr::Attrs {
             rec: recursive,
             attrs,
+            dynamic_attrs: vec![], // TODO: dynamic attrs
         }
     }
 
@@ -288,6 +289,7 @@ impl Normalizer {
                 expr: NormalNixExpr::Attrs {
                     rec: false,
                     attrs: HashMap::from([(key, value)]),
+                    dynamic_attrs: vec![],
                 },
             };
 
