@@ -125,85 +125,70 @@ impl TryFrom<ParsedType> for NixExpr {
 
     fn try_from(value: ParsedType) -> Result<Self, Self::Error> {
         match value {
-            ParsedType::Apply(apply) => {
-                let lambda = try_convert!(apply.lambda());
-                let value = try_convert!(apply.value());
-                Ok(NixExpr::Apply { lambda, value })
-            }
-            ParsedType::Assert(assert) => {
-                let condition = try_convert!(assert.condition());
-                let body = try_convert!(assert.body());
-                Ok(NixExpr::Assert { condition, body })
-            }
+            ParsedType::Apply(apply) => Ok(NixExpr::Apply {
+                lambda: try_convert!(apply.lambda()),
+                value: try_convert!(apply.value()),
+            }),
+            ParsedType::Assert(assert) => Ok(NixExpr::Assert {
+                condition: try_convert!(assert.condition()),
+                body: try_convert!(assert.body()),
+            }),
             ParsedType::Key(_) => todo!(),
             ParsedType::Dynamic(_) => todo!(),
             ParsedType::Error(_) => Err(ToAstError::ParseError),
             ParsedType::Ident(ident) => Ok(NixExpr::Ident(ident.as_str().to_string())),
-            ParsedType::IfElse(if_else) => {
-                let condition = try_convert!(if_else.condition());
-                let body = try_convert!(if_else.body());
-                let else_body = try_convert!(if_else.else_body());
-                Ok(NixExpr::IfElse {
-                    condition,
-                    body,
-                    else_body,
-                })
-            }
-            ParsedType::Select(select) => {
-                let set = try_convert!(select.set());
-                let index = try_convert!(select.set());
-                Ok(NixExpr::Select { set, index })
-            }
+            ParsedType::IfElse(if_else) => Ok(NixExpr::IfElse {
+                condition: try_convert!(if_else.condition()),
+                body: try_convert!(if_else.body()),
+                else_body: try_convert!(if_else.else_body()),
+            }),
+            ParsedType::Select(select) => Ok(NixExpr::Select {
+                set: try_convert!(select.set()),
+                index: try_convert!(select.set()),
+            }),
             ParsedType::Inherit(_) => todo!(),
             ParsedType::InheritFrom(_) => todo!(),
-            ParsedType::Lambda(lambda) => {
-                let arg = try_convert!(lambda.arg());
-                let body = try_convert!(lambda.body());
-                Ok(NixExpr::Lambda { arg, body })
-            }
+            ParsedType::Lambda(lambda) => Ok(NixExpr::Lambda {
+                arg: try_convert!(lambda.arg()),
+                body: try_convert!(lambda.body()),
+            }),
             ParsedType::LegacyLet(_) => todo!(),
-            ParsedType::LetIn(let_in) => {
-                let entries = entries_from_holder(&let_in)?;
-                let body = try_convert!(let_in.body());
-                Ok(NixExpr::LetIn { entries, body })
-            }
-            ParsedType::List(list) => {
-                let items = list
-                    .items()
+            ParsedType::LetIn(let_in) => Ok(NixExpr::LetIn {
+                entries: entries_from_holder(&let_in)?,
+                body: try_convert!(let_in.body()),
+            }),
+            ParsedType::List(list) => Ok(NixExpr::List(
+                list.items()
                     .map(NixExpr::try_from)
-                    .collect::<Result<Vec<NixExpr>, ToAstError>>()?;
-                Ok(NixExpr::List(items))
-            }
-            ParsedType::BinOp(bin_op) => {
-                let lhs = try_convert!(bin_op.lhs());
-                let operator = bin_op.operator().ok_or(ToAstError::EmptyBranch)?;
-                let rhs = try_convert!(bin_op.rhs());
-                Ok(NixExpr::BinOp { lhs, operator, rhs })
-            }
-            ParsedType::OrDefault(or_default) => {
-                let index = Box::new(
+                    .collect::<Result<Vec<NixExpr>, ToAstError>>()?,
+            )),
+            ParsedType::BinOp(bin_op) => Ok(NixExpr::BinOp {
+                lhs: try_convert!(bin_op.lhs()),
+                operator: bin_op.operator().ok_or(ToAstError::EmptyBranch)?,
+                rhs: try_convert!(bin_op.rhs()),
+            }),
+            ParsedType::OrDefault(or_default) => Ok(NixExpr::OrDefault {
+                index: Box::new(
                     or_default
                         .index()
                         .ok_or(ToAstError::EmptyBranch)
                         .map(ParsedType::Select)
                         .and_then(NixExpr::try_from)?,
-                );
-                let default = try_convert!(or_default.default());
-                Ok(NixExpr::OrDefault { index, default })
-            }
+                ),
+                default: try_convert!(or_default.default()),
+            }),
             ParsedType::Paren(paren) => NixExpr::try_from(paren.inner()),
             ParsedType::PatBind(_) => todo!(),
             ParsedType::PatEntry(_) => todo!(),
             ParsedType::Pattern(_) => todo!(),
             ParsedType::Root(_) => todo!(),
-            ParsedType::AttrSet(attr_set) => {
-                let entries = entries_from_holder(&attr_set)?;
-                let recursive = attr_set.recursive();
-                Ok(NixExpr::AttrSet { entries, recursive })
-            }
+            ParsedType::AttrSet(attr_set) => Ok(NixExpr::AttrSet {
+                entries: entries_from_holder(&attr_set)?,
+                recursive: attr_set.recursive(),
+            }),
             ParsedType::KeyValue(_) => todo!(),
-            ParsedType::Str(str) => {
-                let parts = str
+            ParsedType::Str(str) => Ok(NixExpr::Str {
+                parts: str
                     .parts()
                     .into_iter()
                     .map(|part| {
@@ -214,25 +199,20 @@ impl TryFrom<ParsedType> for NixExpr {
                             }
                         })
                     })
-                    .collect::<Result<Vec<StrPart>, ToAstError>>()?;
-
-                Ok(NixExpr::Str { parts })
-            }
+                    .collect::<Result<Vec<StrPart>, ToAstError>>()?,
+            }),
             ParsedType::StrInterpol(_) => todo!(),
-            ParsedType::UnaryOp(unary_op) => {
-                let operator = unary_op.operator().ok_or(ToAstError::EmptyBranch)?;
-                let value = try_convert!(unary_op.value());
-                Ok(NixExpr::UnaryOp { operator, value })
-            }
-            ParsedType::Value(value) => {
-                let value = value.to_value().map_err(ToAstError::ValueError)?;
-                Ok(NixExpr::Value(value))
-            }
-            ParsedType::With(with) => {
-                let namespace = try_convert!(with.namespace());
-                let body = try_convert!(with.body());
-                Ok(NixExpr::With { namespace, body })
-            }
+            ParsedType::UnaryOp(unary_op) => Ok(NixExpr::UnaryOp {
+                operator: unary_op.operator().ok_or(ToAstError::EmptyBranch)?,
+                value: try_convert!(unary_op.value()),
+            }),
+            ParsedType::Value(value) => Ok(NixExpr::Value(
+                value.to_value().map_err(ToAstError::ValueError)?,
+            )),
+            ParsedType::With(with) => Ok(NixExpr::With {
+                namespace: try_convert!(with.namespace()),
+                body: try_convert!(with.body()),
+            }),
             ParsedType::PathWithInterpol(_) => todo!(),
         }
     }
@@ -243,30 +223,24 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
         .node()
         .children()
         .map(|child| match ParsedType::try_from(child).unwrap() {
-            ParsedType::KeyValue(entry) => {
-                let key = entry.key().ok_or(ToAstError::EmptyBranch).and_then(|key| {
+            ParsedType::KeyValue(entry) => Ok(AttrEntry::KeyValue {
+                key: entry.key().ok_or(ToAstError::EmptyBranch).and_then(|key| {
                     key.path()
                         .map(|part| NixExpr::try_from(part))
                         .collect::<Result<Vec<NixExpr>, ToAstError>>()
-                })?;
-
-                let value = try_convert!(entry.value());
-
-                Ok(AttrEntry::KeyValue { key, value })
-            }
-            ParsedType::Inherit(inherit) => {
-                let from = inherit
+                })?,
+                value: try_convert!(entry.value()),
+            }),
+            ParsedType::Inherit(inherit) => Ok(AttrEntry::Inherit {
+                from: inherit
                     .from()
                     .map(|from| NixExpr::try_from(from.inner()).map(Box::new))
-                    .transpose()?;
-
-                let idents = inherit
+                    .transpose()?,
+                idents: inherit
                     .idents()
                     .map(|ident| ident.as_str().to_string())
-                    .collect();
-
-                Ok(AttrEntry::Inherit { from, idents })
-            }
+                    .collect(),
+            }),
             _ => unreachable!(),
         })
         .collect::<Result<Vec<_>, _>>()
