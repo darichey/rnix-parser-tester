@@ -94,8 +94,7 @@ nlohmann::json attr_path_to_json(AttrPath attrPath, const SymbolTable &symbols)
         if (attr.symbol)
         {
             res.push_back({
-                {"attr_type", "Symbol"},
-                {"attr", symbols[attr.symbol]},
+                {"Symbol", symbols[attr.symbol]},
             });
         }
         else

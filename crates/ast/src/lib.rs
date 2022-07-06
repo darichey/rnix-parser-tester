@@ -11,11 +11,11 @@ pub enum NixExpr {
     Select {
         subject: Box<NixExpr>,
         or_default: Option<Box<NixExpr>>,
-        path: AttrPath,
+        path: Vec<AttrName>,
     },
     OpHasAttr {
         subject: Box<NixExpr>,
-        path: AttrPath,
+        path: Vec<AttrName>,
     },
     Attrs {
         rec: bool,
@@ -67,11 +67,6 @@ pub enum NixExpr {
 pub enum AttrName {
     Symbol(String),
     Expr(NixExpr),
-}
-
-#[derive(Clone, Serialize)]
-pub struct AttrPath {
-    pub components: Vec<AttrName>,
 }
 
 #[derive(Clone, Serialize)]

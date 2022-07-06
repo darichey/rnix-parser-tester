@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::ast::{AttrEntry, LambdaArg, NixExpr, PatEntry, StrPart};
-use ast::{AttrDef, AttrName, AttrPath, Formal, Formals, NixExpr as NormalNixExpr};
+use crate::ast::{AttrEntry, LambdaArg, NixExpr, StrPart};
+use ast::{AttrDef, AttrName, Formal, Formals, NixExpr as NormalNixExpr};
 use rnix::{
     types::{BinOpKind, UnaryOpKind},
     value::Anchor,
@@ -103,17 +103,19 @@ impl Normalizer {
         or_default: Option<NixExpr>,
     ) -> NormalNixExpr {
         let mut subject = set;
-        let mut components: Vec<AttrName> = vec![self.index_to_atrr_name(index)];
+        let mut path: Vec<AttrName> = vec![self.index_to_atrr_name(index)];
 
         while let NixExpr::Select { set, index } = subject {
-            components.push(self.index_to_atrr_name(*index));
+            path.push(self.index_to_atrr_name(*index));
             subject = *set;
         }
+
+        path.reverse();
 
         NormalNixExpr::Select {
             subject: self.boxed_normalize(subject),
             or_default: or_default.map(|e| self.boxed_normalize(e)),
-            path: AttrPath { components },
+            path,
         }
     }
 
@@ -171,9 +173,7 @@ impl Normalizer {
             }
             BinOpKind::IsSet => NormalNixExpr::OpHasAttr {
                 subject: self.boxed_normalize(lhs),
-                path: AttrPath {
-                    components: todo!(),
-                },
+                path: todo!(),
             },
             BinOpKind::Update => {
                 NormalNixExpr::OpUpdate(self.boxed_normalize(lhs), self.boxed_normalize(rhs))
@@ -318,9 +318,7 @@ impl Normalizer {
                         expr: NormalNixExpr::Select {
                             subject: subject.clone(),
                             or_default: None,
-                            path: AttrPath {
-                                components: vec![AttrName::Symbol(ident.clone())],
-                            },
+                            path: vec![AttrName::Symbol(ident.clone())],
                         },
                     }
                 } else {
