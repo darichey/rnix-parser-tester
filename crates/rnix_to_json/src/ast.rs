@@ -114,19 +114,25 @@ impl TryFrom<SyntaxNode> for NixExpr {
     }
 }
 
+macro_rules! try_convert {
+    ($e:expr) => {
+        Box::new(NixExpr::try_from($e)?)
+    };
+}
+
 impl TryFrom<ParsedType> for NixExpr {
     type Error = ToAstError;
 
     fn try_from(value: ParsedType) -> Result<Self, Self::Error> {
         match value {
             ParsedType::Apply(apply) => {
-                let lambda = Box::new(NixExpr::try_from(apply.lambda())?);
-                let value = Box::new(NixExpr::try_from(apply.value())?);
+                let lambda = try_convert!(apply.lambda());
+                let value = try_convert!(apply.value());
                 Ok(NixExpr::Apply { lambda, value })
             }
             ParsedType::Assert(assert) => {
-                let condition = Box::new(NixExpr::try_from(assert.condition())?);
-                let body = Box::new(NixExpr::try_from(assert.body())?);
+                let condition = try_convert!(assert.condition());
+                let body = try_convert!(assert.body());
                 Ok(NixExpr::Assert { condition, body })
             }
             ParsedType::Key(_) => todo!(),
@@ -134,9 +140,9 @@ impl TryFrom<ParsedType> for NixExpr {
             ParsedType::Error(_) => Err(ToAstError::ParseError),
             ParsedType::Ident(ident) => Ok(NixExpr::Ident(ident.as_str().to_string())),
             ParsedType::IfElse(if_else) => {
-                let condition = Box::new(NixExpr::try_from(if_else.condition())?);
-                let body = Box::new(NixExpr::try_from(if_else.body())?);
-                let else_body = Box::new(NixExpr::try_from(if_else.else_body())?);
+                let condition = try_convert!(if_else.condition());
+                let body = try_convert!(if_else.body());
+                let else_body = try_convert!(if_else.else_body());
                 Ok(NixExpr::IfElse {
                     condition,
                     body,
@@ -144,21 +150,21 @@ impl TryFrom<ParsedType> for NixExpr {
                 })
             }
             ParsedType::Select(select) => {
-                let set = Box::new(NixExpr::try_from(select.set())?);
-                let index = Box::new(NixExpr::try_from(select.set())?);
+                let set = try_convert!(select.set());
+                let index = try_convert!(select.set());
                 Ok(NixExpr::Select { set, index })
             }
             ParsedType::Inherit(_) => todo!(),
             ParsedType::InheritFrom(_) => todo!(),
             ParsedType::Lambda(lambda) => {
-                let arg = Box::new(NixExpr::try_from(lambda.arg())?);
-                let body = Box::new(NixExpr::try_from(lambda.body())?);
+                let arg = try_convert!(lambda.arg());
+                let body = try_convert!(lambda.body());
                 Ok(NixExpr::Lambda { arg, body })
             }
             ParsedType::LegacyLet(_) => todo!(),
             ParsedType::LetIn(let_in) => {
                 let entries = entries_from_holder(&let_in)?;
-                let body = Box::new(NixExpr::try_from(let_in.body())?);
+                let body = try_convert!(let_in.body());
                 Ok(NixExpr::LetIn { entries, body })
             }
             ParsedType::List(list) => {
@@ -169,9 +175,9 @@ impl TryFrom<ParsedType> for NixExpr {
                 Ok(NixExpr::List(items))
             }
             ParsedType::BinOp(bin_op) => {
-                let lhs = Box::new(NixExpr::try_from(bin_op.lhs())?);
+                let lhs = try_convert!(bin_op.lhs());
                 let operator = bin_op.operator().ok_or(ToAstError::EmptyBranch)?;
-                let rhs = Box::new(NixExpr::try_from(bin_op.rhs())?);
+                let rhs = try_convert!(bin_op.rhs());
                 Ok(NixExpr::BinOp { lhs, operator, rhs })
             }
             ParsedType::OrDefault(or_default) => {
@@ -182,7 +188,7 @@ impl TryFrom<ParsedType> for NixExpr {
                         .map(ParsedType::Select)
                         .and_then(NixExpr::try_from)?,
                 );
-                let default = Box::new(NixExpr::try_from(or_default.default())?);
+                let default = try_convert!(or_default.default());
                 Ok(NixExpr::OrDefault { index, default })
             }
             ParsedType::Paren(paren) => NixExpr::try_from(paren.inner()),
@@ -215,7 +221,7 @@ impl TryFrom<ParsedType> for NixExpr {
             ParsedType::StrInterpol(_) => todo!(),
             ParsedType::UnaryOp(unary_op) => {
                 let operator = unary_op.operator().ok_or(ToAstError::EmptyBranch)?;
-                let value = Box::new(NixExpr::try_from(unary_op.value())?);
+                let value = try_convert!(unary_op.value());
                 Ok(NixExpr::UnaryOp { operator, value })
             }
             ParsedType::Value(value) => {
@@ -223,8 +229,8 @@ impl TryFrom<ParsedType> for NixExpr {
                 Ok(NixExpr::Value(value))
             }
             ParsedType::With(with) => {
-                let namespace = Box::new(NixExpr::try_from(with.namespace())?);
-                let body = Box::new(NixExpr::try_from(with.body())?);
+                let namespace = try_convert!(with.namespace());
+                let body = try_convert!(with.body());
                 Ok(NixExpr::With { namespace, body })
             }
             ParsedType::PathWithInterpol(_) => todo!(),
@@ -244,7 +250,7 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
                         .collect::<Result<Vec<NixExpr>, ToAstError>>()
                 })?;
 
-                let value = Box::new(NixExpr::try_from(entry.value())?);
+                let value = try_convert!(entry.value());
 
                 Ok(AttrEntry::KeyValue { key, value })
             }

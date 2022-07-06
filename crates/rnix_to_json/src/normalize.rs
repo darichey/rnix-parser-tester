@@ -8,6 +8,10 @@ use rnix::{
     NixValue,
 };
 
+fn boxed_normalize(expr: NixExpr) -> Box<NormalNixExpr> {
+    Box::new(normalize_nix_expr(expr))
+}
+
 pub(crate) fn normalize_nix_expr(expr: NixExpr) -> NormalNixExpr {
     match expr {
         NixExpr::Apply { lambda, value } => normalize_apply(*lambda, *value),
@@ -34,8 +38,8 @@ pub(crate) fn normalize_nix_expr(expr: NixExpr) -> NormalNixExpr {
 
 fn normalize_with(namespace: NixExpr, body: NixExpr) -> NormalNixExpr {
     NormalNixExpr::With {
-        attrs: Box::new(normalize_nix_expr(namespace)),
-        body: Box::new(normalize_nix_expr(body)),
+        attrs: boxed_normalize(namespace),
+        body: boxed_normalize(body),
     }
 }
 
@@ -66,7 +70,7 @@ fn normalize_value(value: NixValue) -> NormalNixExpr {
 
 fn normalize_unary_op(operator: UnaryOpKind, value: NixExpr) -> NormalNixExpr {
     match operator {
-        UnaryOpKind::Invert => NormalNixExpr::OpNot(Box::new(normalize_nix_expr(value))),
+        UnaryOpKind::Invert => NormalNixExpr::OpNot(boxed_normalize(value)),
         // The reference parser treats negation as subtraction from 0
         UnaryOpKind::Negate => NormalNixExpr::Call {
             fun: Box::new(NormalNixExpr::Var("__sub".to_string())),
@@ -116,7 +120,7 @@ fn normalize_inherit_entry(
     from: Option<Box<NixExpr>>,
     idents: Vec<String>,
 ) -> Vec<(String, AttrDef)> {
-    let subject = from.map(|from| Box::new(normalize_nix_expr(*from)));
+    let subject = from.map(|from| boxed_normalize(*from));
 
     idents
         .into_iter()
@@ -187,20 +191,16 @@ fn normalize_or_default(index: NixExpr, default: NixExpr) -> NormalNixExpr {
 
 fn normalize_bin_op(lhs: NixExpr, operator: BinOpKind, rhs: NixExpr) -> NormalNixExpr {
     match operator {
-        BinOpKind::Concat => NormalNixExpr::OpConcatLists(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
+        BinOpKind::Concat => {
+            NormalNixExpr::OpConcatLists(boxed_normalize(lhs), boxed_normalize(rhs))
+        }
         BinOpKind::IsSet => NormalNixExpr::OpHasAttr {
-            subject: Box::new(normalize_nix_expr(lhs)),
+            subject: boxed_normalize(lhs),
             path: AttrPath {
                 components: todo!(),
             },
         },
-        BinOpKind::Update => NormalNixExpr::OpUpdate(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
+        BinOpKind::Update => NormalNixExpr::OpUpdate(boxed_normalize(lhs), boxed_normalize(rhs)),
         // The reference parser calls all addition "concat strings"
         BinOpKind::Add => NormalNixExpr::OpConcatStrings {
             force_string: false, // FIXME: I don't know what this is
@@ -221,18 +221,9 @@ fn normalize_bin_op(lhs: NixExpr, operator: BinOpKind, rhs: NixExpr) -> NormalNi
             fun: Box::new(NormalNixExpr::Var("__div".to_string())),
             args: vec![normalize_nix_expr(lhs), normalize_nix_expr(rhs)],
         },
-        BinOpKind::And => NormalNixExpr::OpAnd(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
-        BinOpKind::Equal => NormalNixExpr::OpEq(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
-        BinOpKind::Implication => NormalNixExpr::OpImpl(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
+        BinOpKind::And => NormalNixExpr::OpAnd(boxed_normalize(lhs), boxed_normalize(rhs)),
+        BinOpKind::Equal => NormalNixExpr::OpEq(boxed_normalize(lhs), boxed_normalize(rhs)),
+        BinOpKind::Implication => NormalNixExpr::OpImpl(boxed_normalize(lhs), boxed_normalize(rhs)),
         // The reference parser treats less than as a call to __lessThan
         BinOpKind::Less => NormalNixExpr::Call {
             fun: Box::new(NormalNixExpr::Var("__lessThan".to_string())),
@@ -255,14 +246,8 @@ fn normalize_bin_op(lhs: NixExpr, operator: BinOpKind, rhs: NixExpr) -> NormalNi
             // Note the argument order!
             args: vec![normalize_nix_expr(rhs), normalize_nix_expr(lhs)],
         })),
-        BinOpKind::NotEqual => NormalNixExpr::OpNEq(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
-        BinOpKind::Or => NormalNixExpr::OpOr(
-            Box::new(normalize_nix_expr(lhs)),
-            Box::new(normalize_nix_expr(rhs)),
-        ),
+        BinOpKind::NotEqual => NormalNixExpr::OpNEq(boxed_normalize(lhs), boxed_normalize(rhs)),
+        BinOpKind::Or => NormalNixExpr::OpOr(boxed_normalize(lhs), boxed_normalize(rhs)),
     }
 }
 
@@ -272,7 +257,7 @@ fn normalize_list(elems: Vec<NixExpr>) -> NormalNixExpr {
 
 fn normalize_let_in(entries: Vec<AttrEntry>, body: NixExpr) -> NormalNixExpr {
     let attrs = todo!();
-    let body = Box::new(normalize_nix_expr(body));
+    let body = boxed_normalize(body);
     NormalNixExpr::Let { attrs, body }
 }
 
@@ -282,7 +267,7 @@ fn normalize_lambda(arg: NixExpr, body: NixExpr) -> NormalNixExpr {
         _ => todo!(), // TODO pattern
     };
 
-    let body = Box::new(normalize_nix_expr(body));
+    let body = boxed_normalize(body);
 
     NormalNixExpr::Lambda { arg, formals, body }
 }
@@ -304,17 +289,17 @@ fn normalize_select(set: NixExpr, index: NixExpr, or_default: Option<NixExpr>) -
     }
 
     NormalNixExpr::Select {
-        subject: Box::new(normalize_nix_expr(subject)),
-        or_default: or_default.map(|e| Box::new(normalize_nix_expr(e))),
+        subject: boxed_normalize(subject),
+        or_default: or_default.map(|e| boxed_normalize(e)),
         path: AttrPath { components },
     }
 }
 
 fn normalize_if_else(condition: NixExpr, body: NixExpr, else_body: NixExpr) -> NormalNixExpr {
     NormalNixExpr::If {
-        cond: Box::new(normalize_nix_expr(condition)),
-        then: Box::new(normalize_nix_expr(body)),
-        else_: Box::new(normalize_nix_expr(else_body)),
+        cond: boxed_normalize(condition),
+        then: boxed_normalize(body),
+        else_: boxed_normalize(else_body),
     }
 }
 
@@ -324,8 +309,8 @@ fn normalize_ident(ident: String) -> NormalNixExpr {
 
 fn normalize_assert(condition: NixExpr, body: NixExpr) -> NormalNixExpr {
     NormalNixExpr::Assert {
-        cond: Box::new(normalize_nix_expr(condition)),
-        body: Box::new(normalize_nix_expr(body)),
+        cond: boxed_normalize(condition),
+        body: boxed_normalize(body),
     }
 }
 
@@ -342,7 +327,7 @@ fn normalize_apply(lambda: NixExpr, value: NixExpr) -> NormalNixExpr {
     args.reverse();
 
     NormalNixExpr::Call {
-        fun: Box::new(normalize_nix_expr(fun)),
+        fun: boxed_normalize(fun),
         args,
     }
 }
