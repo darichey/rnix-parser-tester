@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::collections::HashMap;
 
 #[derive(Clone, Serialize)]
 pub enum NixExpr {
@@ -19,7 +18,7 @@ pub enum NixExpr {
     },
     Attrs {
         rec: bool,
-        attrs: HashMap<String, AttrDef>,
+        attrs: Vec<AttrDef>,
         dynamic_attrs: Vec<DynamicAttrDef>,
     },
     List(Vec<NixExpr>),
@@ -71,6 +70,7 @@ pub enum AttrName {
 
 #[derive(Clone, Serialize)]
 pub struct AttrDef {
+    pub name: String,
     pub inherited: bool,
     pub expr: NixExpr,
 }

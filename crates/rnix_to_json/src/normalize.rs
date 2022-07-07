@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::ast::{AttrEntry, LambdaArg, NixExpr, StrPart};
 use ast::{AttrDef, AttrName, Formal, Formals, NixExpr as NormalNixExpr};
 use rnix::{
@@ -256,6 +254,7 @@ impl Normalizer {
                 }
                 AttrEntry::Inherit { from, idents } => self.normalize_inherit_entry(from, idents),
             })
+            .rev() // The reference impl has attr set entries reversed
             .collect();
 
         NormalNixExpr::Attrs {
@@ -270,7 +269,7 @@ impl Normalizer {
         &self,
         mut path: Vec<NixExpr>,
         value: NixExpr,
-    ) -> (String, AttrDef) {
+    ) -> AttrDef {
         let mut key = match path.pop() {
             Some(NixExpr::Ident(ident)) => ident,
             Some(_) => todo!(),
@@ -278,42 +277,45 @@ impl Normalizer {
         };
 
         let mut value = AttrDef {
+            name: key,
             inherited: false,
             expr: self.normalize(value),
         };
 
         while let Some(path_component) = path.pop() {
-            value = AttrDef {
-                inherited: false,
-                // TODO: is it possible to have inherited, dynamic attrs, or rec in this case?
-                expr: NormalNixExpr::Attrs {
-                    rec: false,
-                    attrs: HashMap::from([(key, value)]),
-                    dynamic_attrs: vec![],
-                },
-            };
-
             key = match path_component {
                 NixExpr::Ident(ident) => ident,
                 _ => todo!(),
             };
+
+            value = AttrDef {
+                name: key,
+                inherited: false,
+                // TODO: is it possible to have inherited, dynamic attrs, or rec in this case?
+                expr: NormalNixExpr::Attrs {
+                    rec: false,
+                    attrs: vec![value],
+                    dynamic_attrs: vec![],
+                },
+            };
         }
 
-        (key, value)
+        value
     }
 
     fn normalize_inherit_entry(
         &self,
         from: Option<Box<NixExpr>>,
         idents: Vec<String>,
-    ) -> Vec<(String, AttrDef)> {
+    ) -> Vec<AttrDef> {
         let subject = from.map(|from| self.boxed_normalize(*from));
 
         idents
             .into_iter()
             .map(|ident| {
-                let value = if let Some(subject) = &subject {
+                if let Some(subject) = &subject {
                     AttrDef {
+                        name: ident.clone(),
                         inherited: false, // TODO: really?
                         expr: NormalNixExpr::Select {
                             subject: subject.clone(),
@@ -323,12 +325,11 @@ impl Normalizer {
                     }
                 } else {
                     AttrDef {
+                        name: ident.clone(),
                         inherited: true,
                         expr: NormalNixExpr::Var(ident.clone()),
                     }
-                };
-
-                (ident, value)
+                }
             })
             .collect()
     }
