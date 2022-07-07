@@ -1,5 +1,6 @@
 use std::{env, fs};
 
+use assert_json_diff::assert_json_eq;
 use ref_impl_parser::Parser as RefImplParser;
 use rnix_to_json::parse as rnix_parse;
 
@@ -31,7 +32,11 @@ fn main() {
 
         println!("------------");
 
-        println!("{}", json_str1 == json_str2);
+        assert_json_eq!(
+            serde_json::from_str::<serde_json::Value>(&json_str1).unwrap(),
+            serde_json::from_str::<serde_json::Value>(&json_str2).unwrap()
+        );
+        println!("ASTs are equivalent!");
         println!("===========================================");
     }
 }
