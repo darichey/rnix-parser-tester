@@ -1,5 +1,6 @@
 use crate::ast::{AttrEntry, LambdaArg, NixExpr, StrPart};
 use ast::{AttrDef, AttrName, Formal, Formals, NixExpr as NormalNixExpr};
+use ordered_float::NotNan;
 use rnix::{
     types::{BinOpKind, UnaryOpKind},
     value::Anchor,
@@ -145,7 +146,6 @@ impl Normalizer {
 
                 (at, Some(formals))
             }
-            _ => unreachable!(),
         };
 
         let body = self.boxed_normalize(body);
@@ -369,7 +369,7 @@ impl Normalizer {
 
     fn normalize_value(&self, value: NixValue) -> NormalNixExpr {
         match value {
-            NixValue::Float(nf) => NormalNixExpr::Float(nf),
+            NixValue::Float(nf) => NormalNixExpr::Float(NotNan::new(nf).expect("nix float was somehow NaN")),
             NixValue::Integer(n) => NormalNixExpr::Int(n),
             NixValue::String(s) => NormalNixExpr::String(s),
             NixValue::Path(anchor, s) => match anchor {

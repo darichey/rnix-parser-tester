@@ -1,15 +1,10 @@
 #include <memory>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <nix/config.h>
 #include <nix/eval.hh>
 #include <nix/store-api.hh>
 
 #include "reference_to_json.h"
-
-using namespace nix;
-
-nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols);
 
 class NotImplemented : public std::logic_error
 {
@@ -17,262 +12,239 @@ public:
     NotImplemented() : std::logic_error("Function not yet implemented"){};
 };
 
-nlohmann::json attr_defs_to_json(ExprAttrs::AttrDefs attrDefs, const SymbolTable &symbols)
+NixExpr *normalize_nix_expr(nix::Expr *expr, const nix::SymbolTable &symbols);
+
+std::vector<AttrDef*> normalize_attr_defs(nix::ExprAttrs::AttrDefs attrDefs, const nix::SymbolTable &symbols)
 {
-    auto res = nlohmann::json::array();
+    auto res = std::vector<AttrDef*>{};
     for (const auto &[key, value] : attrDefs)
     {
-        res.push_back({
-            {"name", symbols[key]},
-            {"inherited", value.inherited},
-            {"expr", nix_expr_to_json(value.e, symbols)},
-        });
+        res.push_back(mk_attr_def(
+            ((std::string)symbols[key]).c_str(),
+            value.inherited,
+            normalize_nix_expr(value.e, symbols)));
     }
     return res;
 }
 
-nlohmann::json dynamic_attr_defs_to_json(ExprAttrs::DynamicAttrDefs attrDefs, const SymbolTable &symbols)
+std::vector<DynamicAttrDef*> normalize_dynamic_attr_defs(nix::ExprAttrs::DynamicAttrDefs attrDefs, const nix::SymbolTable &symbols)
 {
-    auto res = nlohmann::json::array();
+    auto res = std::vector<DynamicAttrDef*>{};
     for (const auto &attr : attrDefs)
     {
-        res.push_back({
-            {"name_expr", nix_expr_to_json(attr.nameExpr, symbols)},
-            {"value_expr", nix_expr_to_json(attr.valueExpr, symbols)},
-        });
+        res.push_back(mk_dynamic_attr_def(
+            normalize_nix_expr(attr.nameExpr, symbols),
+            normalize_nix_expr(attr.valueExpr, symbols)));
     }
     return res;
 }
 
-nlohmann::json formals_to_json(Formals *formals, const SymbolTable &symbols)
+Formals *normalize_formals(nix::Formals *formals, const nix::SymbolTable &symbols)
 {
     if (formals == nullptr)
     {
         return nullptr;
     }
 
-    auto entries = nlohmann::json::array();
+    auto entries = std::vector<Formal*>{};
     for (const auto formal : formals->formals)
     {
-        entries.push_back({
-            {"name", symbols[formal.name]},
-            {"default", nix_expr_to_json(formal.def, symbols)},
-        });
+        entries.push_back(mk_formal(
+            ((std::string)symbols[formal.name]).c_str(),
+            normalize_nix_expr(formal.def, symbols)));
     }
 
-    return {
-        {"ellipsis", formals->ellipsis},
-        {"entries", entries},
-    };
+    return mk_formals(formals->ellipsis, entries.data(), entries.size());
 }
 
-nlohmann::json nix_exprs_to_json(std::vector<Expr *> exprs, const SymbolTable &symbols)
+std::vector<NixExpr *> normalize_nix_exprs(std::vector<nix::Expr *> exprs, const nix::SymbolTable &symbols)
 {
-    auto res = nlohmann::json::array();
+    auto res = std::vector<NixExpr *>{};
     for (const auto expr : exprs)
     {
-        res.push_back(nix_expr_to_json(expr, symbols));
+        res.push_back(normalize_nix_expr(expr, symbols));
     }
     return res;
 }
 
-nlohmann::json string_concat_exprs_to_json(std::vector<std::pair<PosIdx, Expr *>> *exprs, const SymbolTable &symbols)
+std::vector<NixExpr *> normalize_string_concat_exprs(std::vector<std::pair<nix::PosIdx, nix::Expr *>> *exprs, const nix::SymbolTable &symbols)
 {
-    auto res = std::vector<Expr *>();
+    auto res = std::vector<nix::Expr *>();
     for (const auto &[pos, e] : *exprs)
     {
         res.push_back(e);
     }
 
-    return nix_exprs_to_json(res, symbols);
+    return normalize_nix_exprs(res, symbols);
 }
 
-nlohmann::json attr_path_to_json(AttrPath attrPath, const SymbolTable &symbols)
+std::vector<AttrName*> normalize_attr_path(nix::AttrPath attrPath, const nix::SymbolTable &symbols)
 {
-    auto res = nlohmann::json::array();
+    auto res = std::vector<AttrName*>{};
     for (const auto attr : attrPath)
     {
         if (attr.symbol)
         {
-            res.push_back({
-                {"Symbol", symbols[attr.symbol]},
-            });
+            res.push_back(mk_attr_name_symbol(((std::string)symbols[attr.symbol]).c_str()));
         }
         else
         {
-            res.push_back({
-                {"attr_type", "Expr"},
-                {"attr", nix_expr_to_json(attr.expr, symbols)},
-            });
+            res.push_back(mk_attr_name_expr(normalize_nix_expr(attr.expr, symbols)));
         }
-        // res.push_back(nix_expr_to_json(expr, symbols));
     }
     return res;
 }
 
-nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
+NixExpr *normalize_nix_expr(nix::Expr *expr, const nix::SymbolTable &symbols)
 {
     if (expr == nullptr)
     {
         return nullptr;
     }
-    else if (auto exprInt = dynamic_cast<ExprInt *>(expr))
+    else if (auto exprInt = dynamic_cast<nix::ExprInt *>(expr))
     {
-        return {
-            {"Int", exprInt->n},
-        };
+        return mk_int(exprInt->n);
     }
-    else if (auto exprFloat = dynamic_cast<ExprFloat *>(expr))
+    else if (auto exprFloat = dynamic_cast<nix::ExprFloat *>(expr))
     {
-        return {
-            {"Float", exprFloat->nf},
-        };
+        return mk_float(exprFloat->nf);
     }
-    else if (auto exprString = dynamic_cast<ExprString *>(expr))
+    else if (auto exprString = dynamic_cast<nix::ExprString *>(expr))
     {
-        return {
-            {"String", exprString->s},
-        };
+        return mk_string(exprString->s.c_str());
     }
-    else if (auto exprPath = dynamic_cast<ExprPath *>(expr))
+    else if (auto exprPath = dynamic_cast<nix::ExprPath *>(expr))
     {
-        return {
-            {"Path", exprPath->s},
-        };
+        return mk_path(exprPath->s.c_str());
     }
-    else if (auto exprVar = dynamic_cast<ExprVar *>(expr))
+    else if (auto exprVar = dynamic_cast<nix::ExprVar *>(expr))
     {
-        return {
-            {"Var", symbols[exprVar->name]},
-        };
+        return mk_var(((std::string)symbols[exprVar->name]).c_str());
     }
-    else if (auto exprSelect = dynamic_cast<ExprSelect *>(expr))
+    else if (auto exprSelect = dynamic_cast<nix::ExprSelect *>(expr))
     {
-        return {
-            {"Select", {
-                           {"subject", nix_expr_to_json(exprSelect->e, symbols)},
-                           {"or_default", nix_expr_to_json(exprSelect->def, symbols)},
-                           {"path", attr_path_to_json(exprSelect->attrPath, symbols)},
-                       }}};
+        auto attrPath = normalize_attr_path(exprSelect->attrPath, symbols);
+
+        return mk_select(
+            normalize_nix_expr(exprSelect->e, symbols),
+            normalize_nix_expr(exprSelect->def, symbols),
+            attrPath.data(),
+            attrPath.size());
     }
-    else if (auto exprOpHasAttr = dynamic_cast<ExprOpHasAttr *>(expr))
+    else if (auto exprOpHasAttr = dynamic_cast<nix::ExprOpHasAttr *>(expr))
     {
-        return {
-            {"OpHasAttr", {
-                              {"subject", nix_expr_to_json(exprOpHasAttr->e, symbols)},
-                              {"path", showAttrPath(symbols, exprOpHasAttr->attrPath)},
-                          }}};
+        auto attrPath = normalize_attr_path(exprOpHasAttr->attrPath, symbols);
+
+        return mk_op_has_attr(
+            normalize_nix_expr(exprOpHasAttr->e, symbols),
+            attrPath.data(),
+            attrPath.size());
     }
-    else if (auto exprAttrs = dynamic_cast<ExprAttrs *>(expr))
+    else if (auto exprAttrs = dynamic_cast<nix::ExprAttrs *>(expr))
     {
-        return {
-            {"Attrs", {
-                          {"rec", exprAttrs->recursive},
-                          {"attrs", attr_defs_to_json(exprAttrs->attrs, symbols)},
-                          {"dynamic_attrs", dynamic_attr_defs_to_json(exprAttrs->dynamicAttrs, symbols)},
-                      }}};
+        auto attr_defs = normalize_attr_defs(exprAttrs->attrs, symbols);
+        auto dynamic_attr_defs = normalize_dynamic_attr_defs(exprAttrs->dynamicAttrs, symbols);
+
+        return mk_attrs(
+            exprAttrs->recursive,
+            attr_defs.data(),
+            attr_defs.size(),
+            dynamic_attr_defs.data(),
+            dynamic_attr_defs.size());
     }
-    else if (auto exprList = dynamic_cast<ExprList *>(expr))
+    else if (auto exprList = dynamic_cast<nix::ExprList *>(expr))
     {
-        return {
-            {"List", nix_exprs_to_json(exprList->elems, symbols)},
-        };
+        auto elems = normalize_nix_exprs(exprList->elems, symbols);
+        return mk_list(elems.data(), elems.size());
     }
-    else if (auto exprLambda = dynamic_cast<ExprLambda *>(expr))
+    else if (auto exprLambda = dynamic_cast<nix::ExprLambda *>(expr))
     {
-        nlohmann::json arg(nullptr);
+        const char *arg = nullptr;
         if (exprLambda->arg)
         {
-            arg = (std::string)symbols[exprLambda->arg];
+            arg = ((std::string)symbols[exprLambda->arg]).c_str();
         }
 
-        return {
-            {"Lambda", {
-                           {"arg", arg},
-                           {"formals", formals_to_json(exprLambda->formals, symbols)},
-                           {"body", nix_expr_to_json(exprLambda->body, symbols)},
-                       }}};
+        return mk_lambda(
+            &arg,
+            normalize_formals(exprLambda->formals, symbols),
+            normalize_nix_expr(exprLambda->body, symbols));
     }
-    else if (auto exprCall = dynamic_cast<ExprCall *>(expr))
+    else if (auto exprCall = dynamic_cast<nix::ExprCall *>(expr))
     {
-        return {
-            {"Call", {
-                         {"fun", nix_expr_to_json(exprCall->fun, symbols)},
-                         {"args", nix_exprs_to_json(exprCall->args, symbols)},
-                     }}};
+        auto args = normalize_nix_exprs(exprCall->args, symbols);
+        return mk_call(
+            normalize_nix_expr(exprCall->fun, symbols),
+            args.data(),
+            args.size());
     }
-    else if (auto exprLet = dynamic_cast<ExprLet *>(expr))
+    else if (auto exprLet = dynamic_cast<nix::ExprLet *>(expr))
     {
-        return {
-            {"Let", {
-                        {"attrs", nix_expr_to_json(exprLet->attrs, symbols)},
-                        {"body", nix_expr_to_json(exprLet->body, symbols)},
-                    }}};
+        return mk_let(
+            normalize_nix_expr(exprLet->attrs, symbols),
+            normalize_nix_expr(exprLet->body, symbols));
     }
-    else if (auto exprWith = dynamic_cast<ExprWith *>(expr))
+    else if (auto exprWith = dynamic_cast<nix::ExprWith *>(expr))
     {
-        return {
-            {"With", {
-                         {"attrs", nix_expr_to_json(exprWith->attrs, symbols)},
-                         {"body", nix_expr_to_json(exprWith->body, symbols)},
-                     }}};
+        return mk_with(
+            normalize_nix_expr(exprWith->attrs, symbols),
+            normalize_nix_expr(exprWith->body, symbols));
     }
-    else if (auto exprIf = dynamic_cast<ExprIf *>(expr))
+    else if (auto exprIf = dynamic_cast<nix::ExprIf *>(expr))
     {
-        return {
-            {"If", {
-                       {"cond", nix_expr_to_json(exprIf->cond, symbols)},
-                       {"then", nix_expr_to_json(exprIf->then, symbols)},
-                       {"else", nix_expr_to_json(exprIf->else_, symbols)},
-                   }}};
+        return mk_if(
+            normalize_nix_expr(exprIf->cond, symbols),
+            normalize_nix_expr(exprIf->then, symbols),
+            normalize_nix_expr(exprIf->else_, symbols));
     }
-    else if (auto exprAssert = dynamic_cast<ExprAssert *>(expr))
+    else if (auto exprAssert = dynamic_cast<nix::ExprAssert *>(expr))
     {
-        return {
-            {"Assert", {{"cond", nix_expr_to_json(exprAssert->cond, symbols)}, {"body", nix_expr_to_json(exprAssert->body, symbols)}}},
-        };
+        return mk_assert(
+            normalize_nix_expr(exprAssert->cond, symbols),
+            normalize_nix_expr(exprAssert->body, symbols));
     }
-    else if (auto exprOpNot = dynamic_cast<ExprOpNot *>(expr))
+    else if (auto exprOpNot = dynamic_cast<nix::ExprOpNot *>(expr))
     {
-        return {{"OpNot", nix_expr_to_json(exprOpNot->e, symbols)}};
+        return mk_op_not(normalize_nix_expr(exprOpNot->e, symbols));
     }
-    else if (auto exprOpEq = dynamic_cast<ExprOpEq *>(expr))
+    else if (auto exprOpEq = dynamic_cast<nix::ExprOpEq *>(expr))
     {
-        return {{"OpEq", {nix_expr_to_json(exprOpEq->e1, symbols), nix_expr_to_json(exprOpEq->e2, symbols)}}};
+        return mk_op_eq(normalize_nix_expr(exprOpEq->e1, symbols), normalize_nix_expr(exprOpEq->e2, symbols));
     }
-    else if (auto exprOpNEq = dynamic_cast<ExprOpNEq *>(expr))
+    else if (auto exprOpNEq = dynamic_cast<nix::ExprOpNEq *>(expr))
     {
-        return {{"OpNEq", {nix_expr_to_json(exprOpNEq->e1, symbols), nix_expr_to_json(exprOpNEq->e2, symbols)}}};
+        return mk_op_neq(normalize_nix_expr(exprOpNEq->e1, symbols), normalize_nix_expr(exprOpNEq->e2, symbols));
     }
-    else if (auto exprOpAnd = dynamic_cast<ExprOpAnd *>(expr))
+    else if (auto exprOpAnd = dynamic_cast<nix::ExprOpAnd *>(expr))
     {
-        return {{"OpAnd", {nix_expr_to_json(exprOpAnd->e1, symbols), nix_expr_to_json(exprOpAnd->e2, symbols)}}};
+        return mk_op_and(normalize_nix_expr(exprOpAnd->e1, symbols), normalize_nix_expr(exprOpAnd->e2, symbols));
     }
-    else if (auto exprOpOr = dynamic_cast<ExprOpOr *>(expr))
+    else if (auto exprOpOr = dynamic_cast<nix::ExprOpOr *>(expr))
     {
-        return {{"OpOr", {nix_expr_to_json(exprOpOr->e1, symbols), nix_expr_to_json(exprOpOr->e2, symbols)}}};
+        return mk_op_or(normalize_nix_expr(exprOpOr->e1, symbols), normalize_nix_expr(exprOpOr->e2, symbols));
     }
-    else if (auto exprOpImpl = dynamic_cast<ExprOpImpl *>(expr))
+    else if (auto exprOpImpl = dynamic_cast<nix::ExprOpImpl *>(expr))
     {
-        return {{"OpImpl", {nix_expr_to_json(exprOpImpl->e1, symbols), nix_expr_to_json(exprOpImpl->e2, symbols)}}};
+        return mk_op_impl(normalize_nix_expr(exprOpImpl->e1, symbols), normalize_nix_expr(exprOpImpl->e2, symbols));
     }
-    else if (auto exprOpUpdate = dynamic_cast<ExprOpUpdate *>(expr))
+    else if (auto exprOpUpdate = dynamic_cast<nix::ExprOpUpdate *>(expr))
     {
-        return {{"OpUpdate", {nix_expr_to_json(exprOpUpdate->e1, symbols), nix_expr_to_json(exprOpUpdate->e2, symbols)}}};
+        return mk_op_update(normalize_nix_expr(exprOpUpdate->e1, symbols), normalize_nix_expr(exprOpUpdate->e2, symbols));
     }
-    else if (auto exprOpConcatLists = dynamic_cast<ExprOpConcatLists *>(expr))
+    else if (auto exprOpConcatLists = dynamic_cast<nix::ExprOpConcatLists *>(expr))
     {
-        return {{"OpConcatLists", {nix_expr_to_json(exprOpConcatLists->e1, symbols), nix_expr_to_json(exprOpConcatLists->e2, symbols)}}};
+        return mk_op_concat_lists(normalize_nix_expr(exprOpConcatLists->e1, symbols), normalize_nix_expr(exprOpConcatLists->e2, symbols));
     }
-    else if (auto exprConcatStrings = dynamic_cast<ExprConcatStrings *>(expr))
+    else if (auto exprConcatStrings = dynamic_cast<nix::ExprConcatStrings *>(expr))
     {
-        return {
-            {"type", "ConcatStrings"},
-            {"force_string", exprConcatStrings->forceString},
-            {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
-        };
+        auto exprs = normalize_string_concat_exprs(exprConcatStrings->es, symbols);
+
+        return mk_op_concat_strings(
+            exprConcatStrings->forceString,
+            exprs.data(),
+            exprs.size());
     }
-    else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
+    else if (auto exprPos = dynamic_cast<nix::ExprPos *>(expr))
     {
         throw NotImplemented();
     }
@@ -282,7 +254,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
 
 struct Parser
 {
-    EvalState *state;
+    nix::EvalState *state;
 
     ~Parser()
     {
@@ -292,11 +264,11 @@ struct Parser
 
 extern "C" Parser *init_parser()
 {
-    initGC();
+    nix::initGC();
 
-    auto searchPath = Strings{};
-    auto store = openStore();
-    auto state = new EvalState(searchPath, store);
+    auto searchPath = nix::Strings{};
+    auto store = nix::openStore();
+    auto state = new nix::EvalState(searchPath, store);
 
     return new Parser{state};
 }
@@ -306,12 +278,8 @@ extern "C" void destroy_parser(Parser *parser)
     delete parser;
 }
 
-extern "C" const char *nix_expr_to_json_str(Parser *parser, const char *nix_expr)
+extern "C" NixExpr *parse_nix_expr(Parser *parser, const char *nix_expr)
 {
-    auto expr = parser->state->parseExprFromString(nix_expr, absPath("."));
-
-    auto json_str = nix_expr_to_json(expr, parser->state->symbols).dump();
-    auto c_str = json_str.c_str();
-
-    return strdup(c_str);
+    auto expr = parser->state->parseExprFromString(nix_expr, nix::absPath("."));
+    return normalize_nix_expr(expr, parser->state->symbols);
 }

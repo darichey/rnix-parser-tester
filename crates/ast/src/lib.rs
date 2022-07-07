@@ -1,9 +1,10 @@
+use ordered_float::NotNan;
 use serde::Serialize;
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum NixExpr {
     Int(i64),
-    Float(f64),
+    Float(NotNan<f64>),
     String(String),
     Path(String),
     Var(String),
@@ -62,48 +63,33 @@ pub enum NixExpr {
     },
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum AttrName {
     Symbol(String),
     Expr(NixExpr),
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AttrDef {
     pub name: String,
     pub inherited: bool,
     pub expr: NixExpr,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DynamicAttrDef {
     pub name_expr: NixExpr,
     pub value_expr: NixExpr,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Formal {
     pub name: String,
     pub default: Option<NixExpr>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Formals {
     pub ellipsis: bool,
     pub entries: Vec<Formal>,
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::NixExpr;
-
-    #[test]
-    fn test() {
-        let value = NixExpr::Assert {
-            cond: Box::new(NixExpr::Int(3)),
-            body: Box::new(NixExpr::Int(3)),
-        };
-        let json = serde_json::to_string(&value).unwrap();
-        assert_eq!(json, "");
-    }
 }

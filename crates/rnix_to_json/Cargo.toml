@@ -7,3 +7,4 @@ edition = "2021"
 rnix = { git = "https://github.com/nix-community/rnix-parser" }
 serde_json = "1.0.81"
 ast = { path = "../ast" }
+ordered-float = "2.0"

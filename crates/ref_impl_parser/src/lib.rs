@@ -1,4 +1,6 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
+
+use ast::NixExpr;
 
 mod ffi;
 
@@ -12,13 +14,10 @@ impl Parser {
         Parser { ffi_parser }
     }
 
-    pub fn parse(&self, nix_expr: &str) -> String {
+    pub fn parse(&self, nix_expr: &str) -> NixExpr {
         let nix_expr = CString::new(nix_expr).unwrap();
         let nix_expr = nix_expr.as_ptr();
-        unsafe {
-            let json_str = ffi::nix_expr_to_json_str(self.ffi_parser, nix_expr);
-            CStr::from_ptr(json_str).to_str().unwrap().to_string()
-        }
+        unsafe { *Box::from_raw(ffi::parse_nix_expr(self.ffi_parser, nix_expr)) }
     }
 }
 
@@ -30,17 +29,15 @@ impl Drop for Parser {
 
 #[cfg(test)]
 mod tests {
+    use ast::NixExpr;
+
     use crate::Parser;
 
     #[test]
-    fn test_parse() {
-        let parser = Parser::new();
-        let nix_expr = "let x = 3; in y: x + y";
-        let json_str = parser.parse(nix_expr);
-
+    fn test_parse_int() {
         assert_eq!(
-            r#"{"attrs":{"attrs":{"x":[false,{"type":"Int","value":3}]},"dynamic_attrs":[],"rec":false,"type":"Attrs"},"body":{"arg":"y","body":{"es":[{"type":"Var","value":"x"},{"type":"Var","value":"y"}],"force_string":false,"type":"ConcatStrings"},"formals":null,"name":"","type":"Lambda"},"type":"Let"}"#,
-            json_str
+            Parser::new().parse("7"),
+            NixExpr::Int(7)
         );
     }
 }

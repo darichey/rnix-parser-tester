@@ -1,6 +1,6 @@
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, TypedNode, UnaryOpKind,
+        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind,
         Wrapper,
     },
     value::ValueError,
