@@ -21,7 +21,13 @@ mod integration_tests {
 
         let config = Config::new(CompareMode::Strict);
         if let Err(err) = assert_json_matches_no_panic(&lhs, &rhs, config) {
-            panic!("\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n", err);
+            // Re-serialize the expressions so the keys are in the same order on each side
+            let ref_impl_json_str = lhs.to_string();
+            let rnix_json_str = rhs.to_string();
+            panic!(
+                "\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n",
+                err
+            );
         }
     }
 
