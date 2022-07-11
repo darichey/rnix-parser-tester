@@ -222,7 +222,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
             {"If", {
                        {"cond", nix_expr_to_json(exprIf->cond, symbols)},
                        {"then", nix_expr_to_json(exprIf->then, symbols)},
-                       {"else", nix_expr_to_json(exprIf->else_, symbols)},
+                       {"else_", nix_expr_to_json(exprIf->else_, symbols)},
                    }}};
     }
     else if (auto exprAssert = dynamic_cast<ExprAssert *>(expr))
