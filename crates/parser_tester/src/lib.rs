@@ -45,7 +45,12 @@ mod integration_tests {
     // affect the outcome of the test.
     gen_tests! {
         int: "1",
+        int_leading_zeros: "001",
         float: "3.14",
+        float_no_whole_part: ".14",
+        float_e: "2.5e01",
+        float_e_no_dec_part: "2e01",
+        float_e_no_whole_part: ".5e01",
         string: r#" "hello world" "#,
         string_interpolated: r#" "hello ${"world"} ${123}" "#,
         string_multiline: indoc!{r#"
@@ -60,6 +65,14 @@ mod integration_tests {
                 bar
             ''
         "#},
+        // https://github.com/nix-community/rnix-parser/issues/69
+        string_multiline_nested_quotes: indoc!{r#"
+            ''
+                The "android" ABI is not for 32-bit ARM. Use "androideabi" instead.
+            ''
+        "#},
+        // https://github.com/kamadorueda/alejandra/issues/194
+        string_escaped_interpol: r#" ''''\${[1 2]}'' "#,
         path_relative: "foo/bar",
         path_relative_prefixed: "./foo/bar",
         path_relative_cwd: "./.",
@@ -76,11 +89,24 @@ mod integration_tests {
         attrs_multiple: "{ x = 5; y = 3.14; }",
         attrs_nested: "{ x = { y = { z = 5; }; }; }",
         attrs_compound_key: "{ x.y.z = 5; }",
-        attrs_complex: r#"{ x = { y = { z = 5; }; }; a.b.c = 3.14; foo = "Bar"; }"#,
+        attrs_rec: "rec { x = 5; y = x; }",
+        attrs_dynamic: "x: { ${x} = 5; }",
+        attrs_dynamic_interpol: r#"{ ${"foo"} = "bar"; }"#,
+        attrs_dynamic_plain_compound: "x: { ${x}.y = 5; }",
+        attrs_dynamic_dynamic_compound: "x: { ${x}.${x} = 5; }",
+        attrs_dynamic_string: r#"x: { "${x}.y" = 5; }"#,
+        attrs_inherit: "x: { inherit x; }",
+        attrs_inherit_from: "x: { inherit (x) y z; }",
         list: r#"[1 "2" (x: 3) 4.5]"#,
         list_empty: "[]",
         lambda: "x: x",
+        lambda_underscore_arg: "_:null",
         lambda_nested: "x: y: x",
+        lambda_formals: "{ x }: x",
+        lambda_formals_default: "{ x ? null } : x",
+        lambda_formals_ellipsis: "{ x, ... }: x",
+        lambda_formals_at_left: "inp@{ x }: x",
+        lambda_formals_at_right: "{ x }@inp: x",
         call: "f: f 0",
         call_multiple_args: "f: f 0 1 2",
         call_nested: "f: g: f 0 (g 0 1) 2",
@@ -118,6 +144,8 @@ mod integration_tests {
         greater: "0 > 1",
         greater_eq: "0 >= 1",
         negate: "-5",
-        math_prec: "(0 + 1 + -2 - 3) * -(4 / 5)"
+        math_prec: "(0 + 1 + -2 - 3) * -(4 / 5)",
+        import: "import ./foo.nix",
+        or_special_handling: "[1 or 2]",
     }
 }
