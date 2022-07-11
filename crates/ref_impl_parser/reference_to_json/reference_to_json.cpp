@@ -265,11 +265,10 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     }
     else if (auto exprConcatStrings = dynamic_cast<ExprConcatStrings *>(expr))
     {
-        return {
-            {"type", "ConcatStrings"},
-            {"force_string", exprConcatStrings->forceString},
-            {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
-        };
+        return {{"OpConcatStrings", {
+                                      {"force_string", exprConcatStrings->forceString},
+                                      {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
+                                  }}};
     }
     else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
     {
