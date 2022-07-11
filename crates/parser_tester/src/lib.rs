@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod integration_tests {
-    use assert_json_diff::assert_json_eq;
+    use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
     use indoc::indoc;
     use std::env;
 
     fn assert_parses_eq(nix_expr: &str) {
-        let json_str1 = ref_impl_parser::Parser::new().parse(nix_expr);
-        let json_str2 = rnix_to_json::parse(
+        let ref_impl_json_str = ref_impl_parser::Parser::new().parse(nix_expr);
+        let rnix_json_str = rnix_to_json::parse(
             nix_expr,
             env::current_dir()
                 .unwrap()
@@ -16,10 +16,13 @@ mod integration_tests {
             env::var("HOME").unwrap(),
         );
 
-        assert_json_eq!(
-            serde_json::from_str::<serde_json::Value>(&json_str1).unwrap(),
-            serde_json::from_str::<serde_json::Value>(&json_str2).unwrap()
-        );
+        let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
+        let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
+
+        let config = Config::new(CompareMode::Strict);
+        if let Err(err) = assert_json_matches_no_panic(&lhs, &rhs, config) {
+            panic!("\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n", err);
+        }
     }
 
     macro_rules! gen_tests {
