@@ -27,20 +27,3 @@ impl Drop for Parser {
         unsafe { ffi::destroy_parser(self.ffi_parser) }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::Parser;
-
-    #[test]
-    fn test_parse() {
-        let parser = Parser::new();
-        let nix_expr = "let x = 3; in y: x + y";
-        let json_str = parser.parse(nix_expr);
-
-        assert_eq!(
-            r#"{"attrs":{"attrs":{"x":[false,{"type":"Int","value":3}]},"dynamic_attrs":[],"rec":false,"type":"Attrs"},"body":{"arg":"y","body":{"es":[{"type":"Var","value":"x"},{"type":"Var","value":"y"}],"force_string":false,"type":"ConcatStrings"},"formals":null,"name":"","type":"Lambda"},"type":"Let"}"#,
-            json_str
-        );
-    }
-}

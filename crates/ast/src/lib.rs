@@ -92,18 +92,3 @@ pub struct Formals {
     pub ellipsis: bool,
     pub entries: Vec<Formal>,
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::NixExpr;
-
-    #[test]
-    fn test() {
-        let value = NixExpr::Assert {
-            cond: Box::new(NixExpr::Int(3)),
-            body: Box::new(NixExpr::Int(3)),
-        };
-        let json = serde_json::to_string(&value).unwrap();
-        assert_eq!(json, "");
-    }
-}
