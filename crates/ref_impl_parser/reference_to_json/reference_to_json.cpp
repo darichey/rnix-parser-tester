@@ -105,7 +105,6 @@ nlohmann::json attr_path_to_json(AttrPath attrPath, const SymbolTable &symbols)
                 {"attr", nix_expr_to_json(attr.expr, symbols)},
             });
         }
-        // res.push_back(nix_expr_to_json(expr, symbols));
     }
     return res;
 }
@@ -308,10 +307,19 @@ extern "C" void destroy_parser(Parser *parser)
 
 extern "C" const char *nix_expr_to_json_str(Parser *parser, const char *nix_expr)
 {
-    auto expr = parser->state->parseExprFromString(nix_expr, absPath("."));
+    try
+    {
+        auto expr = parser->state->parseExprFromString(nix_expr, absPath("."));
 
-    auto json_str = nix_expr_to_json(expr, parser->state->symbols).dump();
-    auto c_str = json_str.c_str();
+        auto json_str = nix_expr_to_json(expr, parser->state->symbols).dump();
+        auto c_str = json_str.c_str();
 
-    return strdup(c_str);
+        return strdup(c_str);
+    }
+    catch (std::exception &e)
+    {
+        // FIXME: this should probably be structured in some way instead of pretending to be a json string
+        auto what = e.what();
+        return strdup(what);
+    }
 }

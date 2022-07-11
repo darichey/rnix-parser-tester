@@ -27,3 +27,14 @@ impl Drop for Parser {
         unsafe { ffi::destroy_parser(self.ffi_parser) }
     }
 }
+
+#[cfg(test)]
+mod reference_to_json_tests {
+    use crate::Parser;
+
+    #[test]
+    fn test_bad_parse_doesnt_crash() {
+        let parser = Parser::new();
+        parser.parse("bad expression");
+    }
+}
