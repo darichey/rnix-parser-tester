@@ -1,9 +1,8 @@
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind,
-        Wrapper,
+        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind, Wrapper,
     },
-    value::ValueError,
+    value::{Path, ValueError},
     NixValue, SyntaxKind, SyntaxNode, AST,
 };
 
@@ -39,6 +38,12 @@ pub(crate) enum LambdaArg {
         at: Option<String>,
         ellipsis: bool,
     },
+}
+
+#[derive(Debug)]
+pub(crate) enum PathPart {
+    Literal(String),
+    Ast(NixExpr),
 }
 
 #[derive(Debug)]
@@ -94,6 +99,10 @@ pub(crate) enum NixExpr {
     With {
         namespace: Box<NixExpr>,
         body: Box<NixExpr>,
+    },
+    PathInterpol {
+        base_path: Path,
+        parts: Vec<PathPart>,
     },
 }
 
@@ -176,9 +185,7 @@ impl TryFrom<ParsedType> for NixExpr {
                     .and_then(|arg| ParsedType::try_from(arg).map_err(ToAstError::ParsedTypeError))
                     .and_then(|arg| {
                         Ok(match arg {
-                            ParsedType::Ident(ident) => {
-                                LambdaArg::Ident(ident.to_inner_string())
-                            }
+                            ParsedType::Ident(ident) => LambdaArg::Ident(ident.to_inner_string()),
                             ParsedType::Pattern(pattern) => LambdaArg::Pattern {
                                 entries: pattern
                                     .entries()
@@ -268,7 +275,24 @@ impl TryFrom<ParsedType> for NixExpr {
                 namespace: try_convert!(with.namespace()),
                 body: try_convert!(with.body()),
             }),
-            ParsedType::PathWithInterpol(_) => todo!(),
+            ParsedType::PathWithInterpol(path) => Ok(NixExpr::PathInterpol {
+                base_path: path
+                    .base_path()
+                    .ok_or(ToAstError::EmptyBranch)?
+                    .map_err(ToAstError::ValueError)?,
+                parts: path
+                    .parts()
+                    .into_iter()
+                    .map(|part| {
+                        Ok(match part {
+                            rnix::PathPart::Literal(literal) => PathPart::Literal(literal),
+                            rnix::PathPart::Ast(ast) => {
+                                PathPart::Ast(NixExpr::try_from(ast.inner())?)
+                            }
+                        })
+                    })
+                    .collect::<Result<Vec<PathPart>, ToAstError>>()?,
+            }),
         }
     }
 }

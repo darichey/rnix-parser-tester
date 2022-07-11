@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rnix = { git = "https://github.com/nix-community/rnix-parser" }
+# rnix = { git = "https://github.com/darichey/rnix-parser", branch = "typed-path-interpol" }
+rnix = { path = "../../../rnix-parser" }
 serde_json = "1.0.81"
 ast = { path = "../ast" }

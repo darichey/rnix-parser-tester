@@ -38,6 +38,11 @@ mod integration_tests {
         };
     }
 
+    // Many expressions are nested in a lambda to introduce dummy identifiers.
+    // This is necessary because the reference nix parser couples parsing and
+    // evaluation and will complain about undeclared identifiers at the
+    // parsing phase. As long as lambdas parse equally, then this shouldn't
+    // affect the outcome of the test.
     gen_tests! {
         int: "1",
         float: "3.14",
@@ -61,11 +66,7 @@ mod integration_tests {
         path_absolute: "/foo/bar",
         path_home: "~/foo/bar",
         path_store: "<foo/bar>",
-        path_interpolated: r#"./foo/${"bar"}"#,
-        // Many expressions from this point are nested in a lambda to introduce dummy identifiers.
-        // This is necessary because the reference nix parser couples parsing and evaluation and
-        // will complain about undeclared identifiers at the parsing phase. As long as lambdas
-        // parse equally, then this shouldn't affect the outcome of the test
+        path_interpolated: r#"d: ./a/b/${"c"}/${d}/e/f"#,
         select: "x: x.y",
         select_nested: "x: x.y.z",
         select_with_default: "x: x.y.z or 37",

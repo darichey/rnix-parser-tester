@@ -1,8 +1,8 @@
-use crate::ast::{AttrEntry, LambdaArg, NixExpr, StrPart};
+use crate::ast::{AttrEntry, LambdaArg, NixExpr, PathPart, StrPart};
 use ast::{AttrDef, AttrName, Formal, Formals, NixExpr as NormalNixExpr};
 use rnix::{
     types::{BinOpKind, UnaryOpKind},
-    value::Anchor,
+    value::{Anchor, Path},
     NixValue,
 };
 
@@ -45,6 +45,9 @@ impl Normalizer {
             NixExpr::UnaryOp { operator, value } => self.normalize_unary_op(operator, *value),
             NixExpr::Value(value) => self.normalize_value(value),
             NixExpr::With { namespace, body } => self.normalize_with(*namespace, *body),
+            NixExpr::PathInterpol { base_path, parts } => {
+                self.normalize_path_interpol(base_path, parts)
+            }
         }
     }
 
@@ -372,32 +375,36 @@ impl Normalizer {
         }
     }
 
+    fn normalize_path(&self, anchor: Anchor, path: String) -> NormalNixExpr {
+        match anchor {
+            Anchor::Absolute => NormalNixExpr::Path(path),
+            Anchor::Relative => {
+                let s = if path == "./." {
+                    "".to_string()
+                } else {
+                    format!("/{}", path.strip_prefix("./").unwrap_or(&path))
+                };
+
+                NormalNixExpr::Path(format!("{}{}", self.base_path, s))
+            }
+            Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, path)),
+            // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
+            Anchor::Store => NormalNixExpr::Call {
+                fun: Box::new(NormalNixExpr::Var("__findFile".to_string())),
+                args: vec![
+                    NormalNixExpr::Var("__nixPath".to_string()),
+                    NormalNixExpr::String(path),
+                ],
+            },
+        }
+    }
+
     fn normalize_value(&self, value: NixValue) -> NormalNixExpr {
         match value {
             NixValue::Float(nf) => NormalNixExpr::Float(nf),
             NixValue::Integer(n) => NormalNixExpr::Int(n),
             NixValue::String(s) => NormalNixExpr::String(s),
-            NixValue::Path(anchor, s) => match anchor {
-                Anchor::Absolute => NormalNixExpr::Path(s),
-                Anchor::Relative => {
-                    let s = if s == "./." {
-                        "".to_string()
-                    } else {
-                        format!("/{}", s.strip_prefix("./").unwrap_or(&s))
-                    };
-
-                    NormalNixExpr::Path(format!("{}{}", self.base_path, s))
-                }
-                Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, s)),
-                // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
-                Anchor::Store => NormalNixExpr::Call {
-                    fun: Box::new(NormalNixExpr::Var("__findFile".to_string())),
-                    args: vec![
-                        NormalNixExpr::Var("__nixPath".to_string()),
-                        NormalNixExpr::String(s),
-                    ],
-                },
-            },
+            NixValue::Path(Path { anchor, path }) => self.normalize_path(anchor, path),
         }
     }
 
@@ -405,6 +412,24 @@ impl Normalizer {
         NormalNixExpr::With {
             attrs: self.boxed_normalize(namespace),
             body: self.boxed_normalize(body),
+        }
+    }
+
+    fn normalize_path_interpol(&self, base_path: Path, parts: Vec<PathPart>) -> NormalNixExpr {
+        // The reference impl treats path interpolation as string concatenation of all of the interpolated parts with the first part being expanded into a Path
+        let base_path = self.normalize_path(base_path.anchor, base_path.path);
+
+        let parts = parts
+            .into_iter()
+            .skip(1) // skip the first part since we took care of that above
+            .map(|part| match part {
+                PathPart::Literal(lit) => NormalNixExpr::String(lit),
+                PathPart::Ast(expr) => self.normalize(expr),
+            });
+
+        NormalNixExpr::OpConcatStrings {
+            force_string: false,
+            es: std::iter::once(base_path).chain(parts).collect(),
         }
     }
 }

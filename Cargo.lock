@@ -136,7 +136,6 @@ dependencies = [
 [[package]]
 name = "rnix"
 version = "0.11.0-dev"
-source = "git+https://github.com/nix-community/rnix-parser#d1b22c0aefb113a603f07004ed5a34b2f181dec1"
 dependencies = [
  "cbitset",
  "rowan",
