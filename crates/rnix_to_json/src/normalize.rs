@@ -254,7 +254,6 @@ impl Normalizer {
                 }
                 AttrEntry::Inherit { from, idents } => self.normalize_inherit_entry(from, idents),
             })
-            .rev() // The reference impl has attr set entries reversed
             .collect();
 
         NormalNixExpr::Attrs {
