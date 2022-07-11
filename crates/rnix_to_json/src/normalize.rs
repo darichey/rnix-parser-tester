@@ -213,7 +213,8 @@ impl Normalizer {
             // The reference parser treats leq as negating a call to __lessThan with the args flipped
             BinOpKind::LessOrEq => NormalNixExpr::OpNot(Box::new(NormalNixExpr::Call {
                 fun: Box::new(NormalNixExpr::Var("__lessThan".to_string())),
-                args: vec![self.normalize(lhs), self.normalize(rhs)],
+                // Note the argument order!
+                args: vec![self.normalize(rhs), self.normalize(lhs)],
             })),
             // The reference parser treats greater than as a call to __lessThan with the args flipped
             BinOpKind::More => NormalNixExpr::Call {
@@ -224,8 +225,7 @@ impl Normalizer {
             // The reference parser treats gte as negating a call to __lessThan
             BinOpKind::MoreOrEq => NormalNixExpr::OpNot(Box::new(NormalNixExpr::Call {
                 fun: Box::new(NormalNixExpr::Var("__lessThan".to_string())),
-                // Note the argument order!
-                args: vec![self.normalize(rhs), self.normalize(lhs)],
+                args: vec![self.normalize(lhs), self.normalize(rhs)],
             })),
             BinOpKind::NotEqual => {
                 NormalNixExpr::OpNEq(self.boxed_normalize(lhs), self.boxed_normalize(rhs))
