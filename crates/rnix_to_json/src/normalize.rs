@@ -264,11 +264,7 @@ impl Normalizer {
     }
 
     // Normalizing compound keys (e.g., `x.y.z = "hello"` <=> `x = { y = { z = "hello" }}), because the reference impl does this at the parser level
-    fn normalize_key_value_entry(
-        &self,
-        mut path: Vec<NixExpr>,
-        value: NixExpr,
-    ) -> AttrDef {
+    fn normalize_key_value_entry(&self, mut path: Vec<NixExpr>, value: NixExpr) -> AttrDef {
         let mut key = match path.pop() {
             Some(NixExpr::Ident(ident)) => ident,
             Some(_) => todo!(),
@@ -373,11 +369,15 @@ impl Normalizer {
             NixValue::String(s) => NormalNixExpr::String(s),
             NixValue::Path(anchor, s) => match anchor {
                 Anchor::Absolute => NormalNixExpr::Path(s),
-                Anchor::Relative => NormalNixExpr::Path(format!(
-                    "{}{}",
-                    self.base_path,
-                    s.strip_prefix("./.").or(s.strip_prefix("./")).unwrap_or(&s)
-                )),
+                Anchor::Relative => {
+                    let s = if s == "./." {
+                        "".to_string()
+                    } else {
+                        format!("/{}", s.strip_prefix("./").unwrap_or(&s))
+                    };
+
+                    NormalNixExpr::Path(format!("{}{}", self.base_path, s))
+                }
                 Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, s)),
                 // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
                 Anchor::Store => NormalNixExpr::Call {
