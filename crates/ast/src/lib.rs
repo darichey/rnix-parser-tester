@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub enum NixExpr {
     Int(i64),
     Float(f64),
@@ -62,32 +62,32 @@ pub enum NixExpr {
     },
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub enum AttrName {
     Symbol(String),
     Expr(NixExpr),
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub struct AttrDef {
     pub name: String,
     pub inherited: bool,
     pub expr: NixExpr,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub struct DynamicAttrDef {
     pub name_expr: NixExpr,
     pub value_expr: NixExpr,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub struct Formal {
     pub name: String,
     pub default: Option<NixExpr>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Debug)]
 pub struct Formals {
     pub ellipsis: bool,
     pub entries: Vec<Formal>,

@@ -70,6 +70,7 @@ mod integration_tests {
         select_nested: "x: x.y.z",
         select_with_default: "x: x.y.z or 37",
         has_attr: "x: x ? y",
+        has_attr_compound: "x: x ? y.z",
         attrs: "{ x = 5; }",
         attrs_multiple: "{ x = 5; y = 3.14; }",
         attrs_nested: "{ x = { y = { z = 5; }; }; }",

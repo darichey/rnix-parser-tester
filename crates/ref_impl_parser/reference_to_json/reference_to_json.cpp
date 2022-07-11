@@ -159,7 +159,7 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
         return {
             {"OpHasAttr", {
                               {"subject", nix_expr_to_json(exprOpHasAttr->e, symbols)},
-                              {"path", showAttrPath(symbols, exprOpHasAttr->attrPath)},
+                              {"path", attr_path_to_json(exprOpHasAttr->attrPath, symbols)},
                           }}};
     }
     else if (auto exprAttrs = dynamic_cast<ExprAttrs *>(expr))
