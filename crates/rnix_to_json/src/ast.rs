@@ -1,6 +1,6 @@
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, TypedNode, UnaryOpKind,
+        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind,
         Wrapper,
     },
     value::ValueError,
@@ -157,7 +157,7 @@ impl TryFrom<ParsedType> for NixExpr {
             ParsedType::Key(_) => todo!(),
             ParsedType::Dynamic(_) => todo!(),
             ParsedType::Error(_) => Err(ToAstError::ParseError),
-            ParsedType::Ident(ident) => Ok(NixExpr::Ident(ident.as_str().to_string())),
+            ParsedType::Ident(ident) => Ok(NixExpr::Ident(ident.to_inner_string())),
             ParsedType::IfElse(if_else) => Ok(NixExpr::IfElse {
                 condition: try_convert!(if_else.condition()),
                 body: try_convert!(if_else.body()),
@@ -177,7 +177,7 @@ impl TryFrom<ParsedType> for NixExpr {
                     .and_then(|arg| {
                         Ok(match arg {
                             ParsedType::Ident(ident) => {
-                                LambdaArg::Ident(ident.as_str().to_string())
+                                LambdaArg::Ident(ident.to_inner_string())
                             }
                             ParsedType::Pattern(pattern) => LambdaArg::Pattern {
                                 entries: pattern
@@ -186,7 +186,7 @@ impl TryFrom<ParsedType> for NixExpr {
                                         Ok(PatEntry {
                                             name: entry
                                                 .name()
-                                                .map(|ident| ident.as_str().to_string())
+                                                .map(|ident| ident.to_inner_string())
                                                 .ok_or(ToAstError::EmptyBranch)?,
                                             default: entry
                                                 .default()
@@ -195,7 +195,7 @@ impl TryFrom<ParsedType> for NixExpr {
                                         })
                                     })
                                     .collect::<Result<Vec<_>, _>>()?,
-                                at: pattern.at().map(|ident| ident.as_str().to_string()),
+                                at: pattern.at().map(|ident| ident.to_inner_string()),
                                 ellipsis: pattern.ellipsis(),
                             },
                             _ => unreachable!(),
@@ -298,7 +298,7 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
                     .transpose()?,
                 idents: inherit
                     .idents()
-                    .map(|ident| ident.as_str().to_string())
+                    .map(|ident| ident.to_inner_string())
                     .collect(),
             }),
             _ => unreachable!(), // Unreachable because of above filter

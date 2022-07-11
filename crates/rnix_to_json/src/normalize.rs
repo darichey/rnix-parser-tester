@@ -145,7 +145,6 @@ impl Normalizer {
 
                 (at, Some(formals))
             }
-            _ => unreachable!(),
         };
 
         let body = self.boxed_normalize(body);
