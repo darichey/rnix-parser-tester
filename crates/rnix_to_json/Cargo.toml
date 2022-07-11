@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 rnix = { git = "https://github.com/nix-community/rnix-parser" }
 serde_json = "1.0.81"
+ast = { path = "../ast" }
