@@ -357,11 +357,13 @@ impl Normalizer {
                     })
                     .collect(),
             }
-        // otherwise, there should only be one part which is a literal
-        } else if let Some(StrPart::Literal(lit)) = parts.get(0) {
-            NormalNixExpr::String(lit.to_string())
         } else {
-            unreachable!()
+            // otherwise, there should either be only be one part which is a literal or nothing which indicates an empty string
+            match parts.first() {
+                Some(StrPart::Literal(lit)) => NormalNixExpr::String(lit.to_string()),
+                None => NormalNixExpr::String("".to_string()),
+                _ => unreachable!(),
+            }
         }
     }
 
