@@ -182,6 +182,7 @@ mod nixpkgs_test {
     use crate::assert_parses_eq_no_panic;
 
     #[test]
+    #[ignore] // Expensive, so ignored by default
     fn test() {
         let path = env::var("NIX_PATH").unwrap();
         let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
