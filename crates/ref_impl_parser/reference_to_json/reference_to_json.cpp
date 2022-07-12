@@ -19,15 +19,25 @@ public:
 
 nlohmann::json attr_defs_to_json(ExprAttrs::AttrDefs attrDefs, const SymbolTable &symbols)
 {
-    auto res = nlohmann::json::array();
-    for (const auto &[key, value] : attrDefs)
+    std::vector<std::pair<Symbol, ExprAttrs::AttrDef>> attrs{};
+    for (const auto &attr : attrDefs)
     {
+        attrs.push_back(attr);
+    }
+
+    // Sort the attributes by name to ensure consistent ordering
+    std::sort(attrs.begin(), attrs.end(), [&symbols](std::pair<Symbol, ExprAttrs::AttrDef> &a, std::pair<Symbol, ExprAttrs::AttrDef> &b)
+              { return (std::string)symbols[a.first] < (std::string)symbols[b.first]; });
+
+    auto res = nlohmann::json::array();
+    for (const auto &[key, value] : attrs) {
         res.push_back({
             {"name", symbols[key]},
             {"inherited", value.inherited},
             {"expr", nix_expr_to_json(value.e, symbols)},
         });
     }
+    
     return res;
 }
 
@@ -266,9 +276,9 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     else if (auto exprConcatStrings = dynamic_cast<ExprConcatStrings *>(expr))
     {
         return {{"OpConcatStrings", {
-                                      {"force_string", exprConcatStrings->forceString},
-                                      {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
-                                  }}};
+                                        {"force_string", exprConcatStrings->forceString},
+                                        {"es", string_concat_exprs_to_json(exprConcatStrings->es, symbols)},
+                                    }}};
     }
     else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
     {

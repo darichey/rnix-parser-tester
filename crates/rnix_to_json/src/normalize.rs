@@ -302,6 +302,9 @@ impl Normalizer {
             }
         }
 
+        // Sort attrs by key names. See attr_set_key_sorting test for explanation.
+        attrs.sort_by(|a, b| a.name.cmp(&b.name));
+
         NormalNixExpr::Attrs {
             rec: recursive,
             attrs,

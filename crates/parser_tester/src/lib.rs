@@ -163,6 +163,15 @@ mod integration_tests {
         math_prec: "(0 + 1 + -2 - 3) * -(4 / 5)",
         import: "import ./foo.nix",
         or_special_handling: "[1 or 2]",
+        // This is a kind of sanity check relating to how the reference impl sorts attr set keys.
+        // In particular, it maintains a global set of symbols, and attributes are sorted by when
+        // their corresponding symbols were created. However, there are a bunch of built-in symbols
+        // which are created earlier than all the others: https://github.com/NixOS/nix/blob/7e23039b7f491f8517309e0c20653d6d80c37dd7/src/libexpr/eval.cc#L426-L462
+        // So, without doing anything, `outputs` would appear _before_ `description` in the below set.
+        // However, we don't actually care about attribute order in Nix, so to make things easier, we
+        // sort lexicographically on key name in both the ref impl and rnix normalization phases.
+        // So, this test verifies that both are sorting correctly despite the ref impl's default behavior.
+        attr_set_key_sorting: r#"{ description = "foo"; outputs = "bar"; a = "a"; }"#,
     }
 }
 
