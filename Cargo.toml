@@ -5,4 +5,5 @@ members = [
     "crates/ref_impl_parser",
     "crates/rnix_to_json",
     "crates/ast",
+    "crates/tools",
 ]

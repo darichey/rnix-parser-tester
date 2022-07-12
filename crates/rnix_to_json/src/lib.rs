@@ -1,6 +1,6 @@
-use normalize::normalize_nix_expr;
+pub use normalize::normalize_nix_expr;
 
-use crate::ast::NixExpr;
+pub use crate::ast::NixExpr;
 
 mod ast;
 mod normalize;

@@ -187,8 +187,6 @@ mod nixpkgs_test {
         let path = env::var("NIX_PATH").unwrap();
         let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
 
-        println!("Nix store path: {}", nixpkgs);
-
         recurse(Path::new(&nixpkgs["nixpkgs=".len()..]))
     }
 
@@ -206,7 +204,7 @@ mod nixpkgs_test {
 
             if let Err(err) = assert_parses_eq_no_panic(&nix_expr) {
                 println!("\x1b[31mFAILED\x1b[0m");
-                println!("{err}");
+                // println!("{err}");
             } else {
                 println!("\x1b[32mok\x1b[0m");
             }

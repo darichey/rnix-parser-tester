@@ -7,7 +7,7 @@ use rnix::{
     NixValue,
 };
 
-pub(crate) fn normalize_nix_expr(
+pub fn normalize_nix_expr(
     expr: NixExpr,
     base_path: String,
     home_path: String,
@@ -288,7 +288,7 @@ impl Normalizer {
                             attrs.push(AttrDef {
                                 name: match *key {
                                     NixExpr::Ident(ident) => ident,
-                                    _ => todo!(),
+                                    x => todo!("{x:?}"),
                                 },
                                 inherited: false,
                                 expr: value,

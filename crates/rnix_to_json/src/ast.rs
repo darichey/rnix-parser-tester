@@ -1,3 +1,5 @@
+use std::fmt;
+
 use nonempty::NonEmpty;
 use rnix::{
     types::{
@@ -9,13 +11,13 @@ use rnix::{
 };
 
 #[derive(Debug)]
-pub(crate) enum KeyPart {
+pub enum KeyPart {
     Dynamic(Box<NixExpr>),
     Plain(Box<NixExpr>),
 }
 
 #[derive(Debug)]
-pub(crate) enum AttrEntry {
+pub enum AttrEntry {
     KeyValue {
         key: NonEmpty<KeyPart>,
         value: Box<NixExpr>,
@@ -27,19 +29,19 @@ pub(crate) enum AttrEntry {
 }
 
 #[derive(Debug)]
-pub(crate) enum StrPart {
+pub enum StrPart {
     Literal(String),
     Ast(NixExpr),
 }
 
 #[derive(Debug)]
-pub(crate) struct PatEntry {
+pub struct PatEntry {
     pub name: String,
     pub default: Option<NixExpr>,
 }
 
 #[derive(Debug)]
-pub(crate) enum LambdaArg {
+pub enum LambdaArg {
     Ident(String),
     Pattern {
         entries: Vec<PatEntry>,
@@ -49,13 +51,13 @@ pub(crate) enum LambdaArg {
 }
 
 #[derive(Debug)]
-pub(crate) enum PathPart {
+pub enum PathPart {
     Literal(String),
     Ast(NixExpr),
 }
 
 #[derive(Debug)]
-pub(crate) enum NixExpr {
+pub enum NixExpr {
     Apply {
         lambda: Box<NixExpr>,
         value: Box<NixExpr>,
@@ -121,6 +123,27 @@ pub enum ToAstError {
     ParseError,
     ValueError(ValueError),
 }
+
+impl fmt::Display for ToAstError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ToAstError::EmptyBranch => {
+                write!(f, "A branch of the rnix AST was empty")
+            }
+            ToAstError::ParsedTypeError(err) => {
+                write!(f, "Error raising to rnix's typed AST: {}", err.to_string())
+            }
+            ToAstError::ParseError => {
+                write!(f, "There was an error in the rnix AST")
+            }
+            ToAstError::ValueError(err) => {
+                write!(f, "Error parsing value: {}", err.to_string())
+            }
+        }
+    }
+}
+
+impl std::error::Error for ToAstError {}
 
 impl TryFrom<AST> for NixExpr {
     type Error = ToAstError;
