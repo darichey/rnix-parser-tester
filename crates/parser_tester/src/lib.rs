@@ -1,35 +1,44 @@
+use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
+use std::env;
+
+pub(crate) fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
+    let ref_impl_json_str = ref_impl_parser::Parser::new().parse(nix_expr);
+    let rnix_json_str = rnix_to_json::parse(
+        nix_expr,
+        env::current_dir()
+            .unwrap()
+            .into_os_string()
+            .into_string()
+            .unwrap(),
+        env::var("HOME").unwrap(),
+    );
+
+    let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
+    let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
+
+    let config = Config::new(CompareMode::Strict);
+
+    assert_json_matches_no_panic(&lhs, &rhs, config).map_err(|err| {
+        // Re-serialize the expressions so the keys are in the same order on each side
+        let ref_impl_json_str = lhs.to_string();
+        let rnix_json_str = rhs.to_string();
+        format!(
+            "\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n",
+            err
+        )
+    })
+}
+
+pub(crate) fn assert_parses_eq(nix_expr: &str) {
+    if let Err(err) = assert_parses_eq_no_panic(nix_expr) {
+        panic!("{err}");
+    }
+}
+
 #[cfg(test)]
 mod integration_tests {
-    use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
+    use crate::assert_parses_eq;
     use indoc::indoc;
-    use std::env;
-
-    fn assert_parses_eq(nix_expr: &str) {
-        let ref_impl_json_str = ref_impl_parser::Parser::new().parse(nix_expr);
-        let rnix_json_str = rnix_to_json::parse(
-            nix_expr,
-            env::current_dir()
-                .unwrap()
-                .into_os_string()
-                .into_string()
-                .unwrap(),
-            env::var("HOME").unwrap(),
-        );
-
-        let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
-        let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
-
-        let config = Config::new(CompareMode::Strict);
-        if let Err(err) = assert_json_matches_no_panic(&lhs, &rhs, config) {
-            // Re-serialize the expressions so the keys are in the same order on each side
-            let ref_impl_json_str = lhs.to_string();
-            let rnix_json_str = rhs.to_string();
-            panic!(
-                "\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n",
-                err
-            );
-        }
-    }
 
     macro_rules! gen_tests {
         ($($name:ident : $nix:expr),* $(,)?) => {
@@ -154,5 +163,51 @@ mod integration_tests {
         math_prec: "(0 + 1 + -2 - 3) * -(4 / 5)",
         import: "import ./foo.nix",
         or_special_handling: "[1 or 2]",
+    }
+}
+
+#[cfg(test)]
+mod nixpkgs_test {
+    use std::{env, fs, path::Path};
+
+    use crate::assert_parses_eq_no_panic;
+
+    #[test]
+    fn test() {
+        let path = env::var("NIX_PATH").unwrap();
+        let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
+
+        println!("Nix store path: {}", nixpkgs);
+
+        recurse(Path::new(&nixpkgs["nixpkgs=".len()..]))
+    }
+
+    fn recurse(path: &Path) {
+        if path.metadata().unwrap().is_file() {
+            if path.extension().and_then(|s| s.to_str()) != Some("nix") {
+                return;
+            }
+
+            print!("{} ... ", path.display());
+            let nix_expr = fs::read_to_string(path).unwrap();
+            if nix_expr.trim().is_empty() {
+                return;
+            }
+
+            if let Err(err) = assert_parses_eq_no_panic(&nix_expr) {
+                println!("\x1b[31mFAILED\x1b[0m");
+                println!("{err}");
+            } else {
+                println!("\x1b[32mok\x1b[0m");
+            }
+        } else {
+            for entry in path.read_dir().unwrap() {
+                let entry = entry.unwrap();
+                if entry.file_type().unwrap().is_symlink() {
+                    continue;
+                }
+                recurse(&entry.path());
+            }
+        }
     }
 }
