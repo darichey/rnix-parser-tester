@@ -1,15 +1,23 @@
+use nonempty::NonEmpty;
 use rnix::{
     types::{
-        BinOpKind, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind, Wrapper,
+        BinOpKind, Dynamic, EntryHolder, ParsedType, ParsedTypeError, TokenWrapper, UnaryOpKind,
+        Wrapper,
     },
     value::{Path, ValueError},
     NixValue, SyntaxKind, SyntaxNode, AST,
 };
 
 #[derive(Debug)]
+pub(crate) enum KeyPart {
+    Dynamic(Box<NixExpr>),
+    Plain(Box<NixExpr>),
+}
+
+#[derive(Debug)]
 pub(crate) enum AttrEntry {
     KeyValue {
-        key: Vec<NixExpr>,
+        key: NonEmpty<KeyPart>,
         value: Box<NixExpr>,
     },
     Inherit {
@@ -308,11 +316,23 @@ fn entries_from_holder(entry_holder: &impl EntryHolder) -> Result<Vec<AttrEntry>
         .map(|child| ParsedType::try_from(child).map_err(ToAstError::ParsedTypeError))
         .map(|child| match child? {
             ParsedType::KeyValue(entry) => Ok(AttrEntry::KeyValue {
-                key: entry.key().ok_or(ToAstError::EmptyBranch).and_then(|key| {
-                    key.path()
-                        .map(|part| NixExpr::try_from(part))
-                        .collect::<Result<Vec<NixExpr>, ToAstError>>()
-                })?,
+                key: NonEmpty::from_vec(entry.key().ok_or(ToAstError::EmptyBranch).and_then(
+                    |key| {
+                        key.path()
+                            .map(|part| {
+                                // Mark dynamic entries
+                                let part = ParsedType::try_from(part)
+                                    .map_err(ToAstError::ParsedTypeError)?;
+                                if let ParsedType::Dynamic(dynamic) = part {
+                                    Ok(KeyPart::Dynamic(try_convert!(dynamic.inner())))
+                                } else {
+                                    Ok(KeyPart::Plain(try_convert!(part)))
+                                }
+                            })
+                            .collect::<Result<Vec<KeyPart>, ToAstError>>()
+                    },
+                )?)
+                .ok_or(ToAstError::EmptyBranch)?,
                 value: try_convert!(entry.value()),
             }),
             ParsedType::Inherit(inherit) => Ok(AttrEntry::Inherit {

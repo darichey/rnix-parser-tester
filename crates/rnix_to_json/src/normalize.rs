@@ -1,5 +1,6 @@
-use crate::ast::{AttrEntry, LambdaArg, NixExpr, PathPart, StrPart};
-use ast::{AttrDef, AttrName, Formal, Formals, NixExpr as NormalNixExpr};
+use crate::ast::{AttrEntry, KeyPart, LambdaArg, NixExpr, PathPart, StrPart};
+use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
+use nonempty::NonEmpty;
 use rnix::{
     types::{BinOpKind, UnaryOpKind},
     value::{Anchor, Path},
@@ -259,56 +260,53 @@ impl Normalizer {
     }
 
     fn normalize_attr_set(&self, entries: Vec<AttrEntry>, recursive: bool) -> NormalNixExpr {
-        let attrs = entries
-            .into_iter()
-            .flat_map(|entry| match entry {
+        let mut attrs = vec![];
+        let mut dynamic_attrs = vec![];
+
+        for entry in entries {
+            match entry {
                 AttrEntry::KeyValue { key, value } => {
-                    vec![self.normalize_key_value_entry(key, *value)]
+                    let value = match NonEmpty::from_vec(key.tail) {
+                        Some(nested_key) => self.normalize_attr_set(
+                            vec![AttrEntry::KeyValue {
+                                key: nested_key,
+                                value,
+                            }],
+                            false,
+                        ),
+                        None => self.normalize(*value),
+                    };
+
+                    match key.head {
+                        KeyPart::Dynamic(key) => {
+                            dynamic_attrs.push(DynamicAttrDef {
+                                name_expr: self.normalize(*key),
+                                value_expr: value,
+                            });
+                        }
+                        KeyPart::Plain(key) => {
+                            attrs.push(AttrDef {
+                                name: match *key {
+                                    NixExpr::Ident(ident) => ident,
+                                    _ => todo!(),
+                                },
+                                inherited: false,
+                                expr: value,
+                            });
+                        }
+                    }
                 }
-                AttrEntry::Inherit { from, idents } => self.normalize_inherit_entry(from, idents),
-            })
-            .collect();
+                AttrEntry::Inherit { from, idents } => {
+                    attrs.extend(self.normalize_inherit_entry(from, idents))
+                }
+            }
+        }
 
         NormalNixExpr::Attrs {
             rec: recursive,
             attrs,
-            dynamic_attrs: vec![], // TODO: dynamic attrs
+            dynamic_attrs,
         }
-    }
-
-    // Normalizing compound keys (e.g., `x.y.z = "hello"` <=> `x = { y = { z = "hello" }}), because the reference impl does this at the parser level
-    fn normalize_key_value_entry(&self, mut path: Vec<NixExpr>, value: NixExpr) -> AttrDef {
-        let mut key = match path.pop() {
-            Some(NixExpr::Ident(ident)) => ident,
-            Some(_) => todo!(),
-            None => unreachable!(),
-        };
-
-        let mut value = AttrDef {
-            name: key,
-            inherited: false,
-            expr: self.normalize(value),
-        };
-
-        while let Some(path_component) = path.pop() {
-            key = match path_component {
-                NixExpr::Ident(ident) => ident,
-                _ => todo!(),
-            };
-
-            value = AttrDef {
-                name: key,
-                inherited: false,
-                // TODO: is it possible to have inherited, dynamic attrs, or rec in this case?
-                expr: NormalNixExpr::Attrs {
-                    rec: false,
-                    attrs: vec![value],
-                    dynamic_attrs: vec![],
-                },
-            };
-        }
-
-        value
     }
 
     fn normalize_inherit_entry(

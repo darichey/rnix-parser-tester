@@ -8,3 +8,4 @@ edition = "2021"
 rnix = { path = "../../../rnix-parser" }
 serde_json = "1.0.81"
 ast = { path = "../ast" }
+nonempty = "0.8.0"
