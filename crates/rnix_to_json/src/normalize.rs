@@ -7,11 +7,7 @@ use rnix::{
     NixValue,
 };
 
-pub fn normalize_nix_expr(
-    expr: NixExpr,
-    base_path: String,
-    home_path: String,
-) -> NormalNixExpr {
+pub fn normalize_nix_expr(expr: NixExpr, base_path: String, home_path: String) -> NormalNixExpr {
     Normalizer {
         base_path,
         home_path,
@@ -263,10 +259,13 @@ impl Normalizer {
         let mut attrs = vec![];
         let mut dynamic_attrs = vec![];
 
+        // For each entry, we generate some number of either dynamic or non-dynamic attrs
         for entry in entries {
             match entry {
+                // If the entry is of the form `foo = bar`
                 AttrEntry::KeyValue { key, value } => {
                     let value = match NonEmpty::from_vec(key.tail) {
+                        // If the entry is of the form `x.y.z = bar`, then we expand into `x = { y.z = bar }` and recurse
                         Some(nested_key) => self.normalize_attr_set(
                             vec![AttrEntry::KeyValue {
                                 key: nested_key,
@@ -274,33 +273,71 @@ impl Normalizer {
                             }],
                             false,
                         ),
+                        // Otherwise, the value of the attr is simply the rhs of the equals as-is
                         None => self.normalize(*value),
                     };
 
                     match key.head {
-                        KeyPart::Dynamic(key) => {
-                            dynamic_attrs.push(DynamicAttrDef {
-                                name_expr: self.normalize(*key),
-                                value_expr: value,
-                            });
-                        }
+                        // A Dynamic KeyPart is _definitely_ dynamic... _unless_ it's just a string with no interpolations (e.g., `${"foo"}`)! I know...
+                        KeyPart::Dynamic(key) => match self.normalize(*key) {
+                            NormalNixExpr::String(name) => {
+                                attrs.push(AttrDef {
+                                    name,
+                                    inherited: false,
+                                    expr: value,
+                                });
+                            }
+                            name_expr => {
+                                dynamic_attrs.push(DynamicAttrDef {
+                                    name_expr,
+                                    value_expr: value,
+                                });
+                            }
+                        },
+                        // A "plain" KeyPart still may be dynamic depending on the inner expression
                         KeyPart::Plain(key) => {
-                            attrs.push(AttrDef {
-                                name: match *key {
-                                    NixExpr::Ident(ident) => ident,
-                                    x => todo!("{x:?}"),
+                            match *key {
+                                // If the key expression is a string, it might be dynamic
+                                NixExpr::Str { parts } => match self.normalize_str(parts) {
+                                    // If it turns out to just be a string, it's not dynamic
+                                    NormalNixExpr::String(name) => {
+                                        attrs.push(AttrDef {
+                                            name,
+                                            inherited: false,
+                                            expr: value,
+                                        });
+                                    }
+                                    // If it had interpolations in it, it normalized to OpConcatStrings, and is dynamic
+                                    name_expr @ NormalNixExpr::OpConcatStrings { .. } => {
+                                        dynamic_attrs.push(DynamicAttrDef {
+                                            name_expr,
+                                            value_expr: value,
+                                        })
+                                    }
+                                    // TODO: normalize_str can't return anything else, but we should represent this impossibility more nicely
+                                    _ => unreachable!(),
                                 },
-                                inherited: false,
-                                expr: value,
-                            });
+                                // If the key expression is an identifier, it's not dynamic
+                                NixExpr::Ident(name) => {
+                                    attrs.push(AttrDef {
+                                        name,
+                                        inherited: false,
+                                        expr: value,
+                                    });
+                                }
+                                _ => todo!(),
+                            }
                         }
                     }
                 }
+                // If the entry is of the form `inherit foo`
                 AttrEntry::Inherit { from, idents } => {
                     attrs.extend(self.normalize_inherit_entry(from, idents))
                 }
             }
         }
+
+        // TODO merge duplicate keys
 
         // Sort attrs by key names. See attr_set_key_sorting test for explanation.
         attrs.sort_by(|a, b| a.name.cmp(&b.name));
@@ -359,9 +396,9 @@ impl Normalizer {
             }
         } else {
             // otherwise, there should either be only be one part which is a literal or nothing which indicates an empty string
-            match parts.first() {
-                Some(StrPart::Literal(lit)) => NormalNixExpr::String(lit.to_string()),
-                None => NormalNixExpr::String("".to_string()),
+            match &*parts {
+                [StrPart::Literal(lit)] => NormalNixExpr::String(lit.to_string()),
+                [] => NormalNixExpr::String("".to_string()),
                 _ => unreachable!(),
             }
         }
