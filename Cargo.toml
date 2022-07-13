@@ -3,7 +3,8 @@
 members = [
     "crates/parser_tester",
     "crates/ref_impl_parser",
-    "crates/rnix_to_json",
+    "crates/rnix_normalize",
     "crates/ast",
     "crates/tools",
+    "crates/rnix_ast",
 ]

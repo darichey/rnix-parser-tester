@@ -81,12 +81,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nonempty"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f1f8e5676e1a1f2ee8b21f38238e1243c827531c9435624c7bfb305102cee4"
-
-[[package]]
 name = "num-traits"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -103,7 +97,8 @@ dependencies = [
  "indoc",
  "paste",
  "ref_impl_parser",
- "rnix_to_json",
+ "rnix_ast",
+ "rnix_normalize",
  "serde_json",
 ]
 
@@ -148,13 +143,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "rnix_to_json"
+name = "rnix_ast"
+version = "0.1.0"
+dependencies = [
+ "rnix",
+]
+
+[[package]]
+name = "rnix_normalize"
 version = "0.1.0"
 dependencies = [
  "ast",
- "nonempty",
- "rnix",
- "serde_json",
+ "rnix_ast",
 ]
 
 [[package]]
@@ -236,7 +236,8 @@ version = "0.1.0"
 dependencies = [
  "ref_impl_parser",
  "rnix",
- "rnix_to_json",
+ "rnix_ast",
+ "rnix_normalize",
 ]
 
 [[package]]

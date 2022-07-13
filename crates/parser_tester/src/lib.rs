@@ -1,10 +1,14 @@
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use std::env;
 
-pub(crate) fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
-    let ref_impl_json_str = ref_impl_parser::Parser::new().parse(nix_expr);
-    let rnix_json_str = rnix_to_json::parse(
-        nix_expr,
+fn ref_impl_to_json(nix_expr: &str) -> String {
+    ref_impl_parser::Parser::new().parse(nix_expr)
+}
+
+fn rnix_to_json(nix_expr: &str) -> String {
+    let rnix_ast = rnix_ast::parse(nix_expr).unwrap();
+    let normalized = rnix_normalize::normalize_nix_expr(
+        rnix_ast,
         env::current_dir()
             .unwrap()
             .into_os_string()
@@ -12,6 +16,12 @@ pub(crate) fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
             .unwrap(),
         env::var("HOME").unwrap(),
     );
+    serde_json::to_string(&normalized).unwrap()
+}
+
+fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
+    let ref_impl_json_str = ref_impl_to_json(nix_expr);
+    let rnix_json_str = rnix_to_json(nix_expr);
 
     let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
     let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
@@ -29,7 +39,7 @@ pub(crate) fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
     })
 }
 
-pub(crate) fn assert_parses_eq(nix_expr: &str) {
+fn assert_parses_eq(nix_expr: &str) {
     if let Err(err) = assert_parses_eq_no_panic(nix_expr) {
         panic!("{err}");
     }
@@ -131,6 +141,7 @@ mod integration_tests {
         let: "let x = 5; in x",
         let_multiple: "let x = 5; y = 3.14; in x",
         let_compound_key: "let x.y.z = 5; in x",
+        let_legacy: "let { x = 5; body = x; }",
         with: "x: with x; y",
         if: "if true then 0 else 1",
         assert: "assert true; 0",

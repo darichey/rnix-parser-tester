@@ -1,7 +1,8 @@
 use std::{env, error::Error, fs};
 
 use rnix::types::TypedNode;
-use rnix_to_json::{normalize_nix_expr, NixExpr as RnixNixExpr};
+use rnix_ast::ast::NixExpr as RNixExpr;
+use rnix_normalize::normalize_nix_expr;
 
 // cargo run -p tools -- foo.nix
 fn main() -> Result<(), Box<dyn Error>> {
@@ -23,7 +24,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!();
 
     println!("==== rnix-parser higher level AST ====");
-    let ast = RnixNixExpr::try_from(ast)?;
+    let ast = RNixExpr::try_from(ast)?;
     println!("{:#?}", ast);
 
     println!();
