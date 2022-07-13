@@ -97,6 +97,8 @@ mod integration_tests {
         select: "x: x.y",
         select_nested: "x: x.y.z",
         select_with_default: "x: x.y.z or 37",
+        select_string: r#" {}."foo" "#,
+        select_string_interp: r#" {}."${"foo"}" "#,
         has_attr: "x: x ? y",
         has_attr_compound: "x: x ? y.z",
         attrs: "{ x = 5; }",

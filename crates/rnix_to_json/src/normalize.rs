@@ -118,9 +118,10 @@ impl Normalizer {
     }
 
     fn index_to_atrr_name(&self, index: NixExpr) -> AttrName {
-        match index {
-            NixExpr::Ident(ident) => AttrName::Symbol(ident),
-            _ => todo!(), // TODO: what else can be here? interpolated keys?
+        match self.normalize(index) {
+            NormalNixExpr::String(s) | NormalNixExpr::Var(s) => AttrName::Symbol(s),
+            expr @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(expr),
+            _ => unreachable!(),
         }
     }
 

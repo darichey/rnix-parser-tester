@@ -10,6 +10,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let nix_expr = fs::read_to_string(file)?;
 
+    println!("==== Reference impl json ====");
+    let ref_impl_json_str = ref_impl_parser::Parser::new().parse(&nix_expr);
+    println!("{}", ref_impl_json_str);
+
+    println!();
+
     println!("==== rnix-parser AST dump ====");
     let ast = rnix::parse(&nix_expr);
     println!("{}", ast.root().dump());
@@ -33,12 +39,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         env::var("HOME").unwrap(),
     );
     println!("{:#?}", ast);
-
-    println!();
-
-    println!("==== Reference impl json ====");
-    let ref_impl_json_str = ref_impl_parser::Parser::new().parse(&nix_expr);
-    println!("{}", ref_impl_json_str);
 
     Ok(())
 }

@@ -111,8 +111,7 @@ nlohmann::json attr_path_to_json(AttrPath attrPath, const SymbolTable &symbols)
         else
         {
             res.push_back({
-                {"attr_type", "Expr"},
-                {"attr", nix_expr_to_json(attr.expr, symbols)},
+                {"Expr", nix_expr_to_json(attr.expr, symbols)},
             });
         }
     }
