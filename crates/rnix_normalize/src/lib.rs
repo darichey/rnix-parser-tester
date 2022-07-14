@@ -126,20 +126,12 @@ impl Normalizer {
     }
 
     fn normalize_select(&self, select: Select) -> NormalNixExpr {
-        let mut subject = *select.set;
-        let mut path: Vec<AttrName> = vec![self.index_to_atrr_name(*select.index)];
-
-        while let RNixExpr::Select(Select { set, index }) = subject {
-            path.push(self.index_to_atrr_name(*index));
-            subject = *set;
-        }
-
-        path.reverse();
+        let (subject, path) = self.linearize_nested_select(select);
 
         NormalNixExpr::Select {
             subject: self.boxed_normalize(subject),
             or_default: None,
-            path,
+            path: self.normalize_as_attr_path(path),
         }
     }
 
@@ -206,23 +198,12 @@ impl Normalizer {
             }
             BinOpKind::IsSet => NormalNixExpr::OpHasAttr {
                 subject: self.boxed_normalize(lhs),
-                path: {
-                    match rhs {
-                        RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
-                            NormalNixExpr::String(s) => vec![AttrName::Symbol(s)],
-                            inner => vec![AttrName::Expr(inner)],
-                        },
-                        rhs => match self.normalize(rhs) {
-                            NormalNixExpr::Var(s) | NormalNixExpr::String(s) => vec![AttrName::Symbol(s)],
-                            NormalNixExpr::Select { subject, path, .. } => match *subject {
-                                NormalNixExpr::Var(var) => std::iter::once(AttrName::Symbol(var))
-                                    .chain(path.into_iter())
-                                    .collect(),
-                                _ => unreachable!(), // TODO: I think?
-                            },
-                            _ => unreachable!(), // TODO: I think?
-                        },
+                path: match rhs {
+                    RNixExpr::Select(select) => {
+                        let (subject, path) = self.linearize_nested_select(select);
+                        self.normalize_as_attr_path(std::iter::once(subject).chain(path).collect())
                     }
+                    rhs => self.normalize_as_attr_path(vec![rhs]),
                 },
             },
             BinOpKind::Update => {
@@ -529,17 +510,34 @@ impl Normalizer {
         }
     }
 
-    fn index_to_atrr_name(&self, index: RNixExpr) -> AttrName {
-        match index {
-            RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
-                NormalNixExpr::String(s) => AttrName::Symbol(s),
-                inner => AttrName::Expr(inner),
-            },
-            index => match self.normalize(index) {
-                NormalNixExpr::String(s) | NormalNixExpr::Var(s) => AttrName::Symbol(s),
-                expr @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(expr),
-                _ => unreachable!(),
-            },
+    fn linearize_nested_select(&self, select: Select) -> (RNixExpr, Vec<RNixExpr>) {
+        let mut subject = *select.set;
+        let mut path: Vec<RNixExpr> = vec![*select.index];
+
+        while let RNixExpr::Select(Select { set, index }) = subject {
+            path.push(*index);
+            subject = *set;
         }
+
+        path.reverse();
+        (subject, path)
+    }
+
+    fn normalize_as_attr_path(&self, path: Vec<RNixExpr>) -> Vec<AttrName> {
+        path.into_iter()
+            .map(|expr| match expr {
+                RNixExpr::Ident(Ident { inner }) => AttrName::Symbol(inner),
+                RNixExpr::Str(str) => match self.normalize_str(str) {
+                    NormalNixExpr::String(s) => AttrName::Symbol(s),
+                    concat @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(concat),
+                    _ => unreachable!(),
+                },
+                RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
+                    NormalNixExpr::String(s) => AttrName::Symbol(s),
+                    inner => AttrName::Expr(inner),
+                },
+                _ => unreachable!(),
+            })
+            .collect()
     }
 }
