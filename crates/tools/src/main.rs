@@ -41,5 +41,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     println!("{:#?}", ast);
 
+    println!();
+
+    println!("==== rnix-parser json ====");
+    let rnix_json_str = serde_json::to_string(&ast).unwrap();
+    println!("{}", rnix_json_str);
+
     Ok(())
 }

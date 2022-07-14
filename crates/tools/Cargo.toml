@@ -8,3 +8,4 @@ ref_impl_parser = { path = "../ref_impl_parser" }
 rnix_normalize = { path = "../rnix_normalize" }
 rnix_ast = { path = "../rnix_ast" }
 rnix = { path = "../../../rnix-parser" }
+serde_json = "1.0.82"
