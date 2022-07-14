@@ -1,8 +1,8 @@
 use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
 use rnix_ast::ast::{
-    Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Entry, Ident, IfElse, Inherit, Key, KeyValue,
-    Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren, Path,
-    PathPart, PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
+    Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
+    KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren,
+    Path, PathPart, PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
 };
 
 pub fn normalize_nix_expr(expr: RNixExpr, base_path: String, home_path: String) -> NormalNixExpr {
@@ -524,10 +524,16 @@ impl Normalizer {
     }
 
     fn index_to_atrr_name(&self, index: RNixExpr) -> AttrName {
-        match self.normalize(index) {
-            NormalNixExpr::String(s) | NormalNixExpr::Var(s) => AttrName::Symbol(s),
-            expr @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(expr),
-            _ => unreachable!(),
+        match index {
+            RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
+                NormalNixExpr::String(s) => AttrName::Symbol(s),
+                inner => AttrName::Expr(inner),
+            },
+            index => match self.normalize(index) {
+                NormalNixExpr::String(s) | NormalNixExpr::Var(s) => AttrName::Symbol(s),
+                expr @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(expr),
+                _ => unreachable!(),
+            },
         }
     }
 }

@@ -109,6 +109,8 @@ mod integration_tests {
         select_with_default: "x: x.y.z or 37",
         select_string: r#" {}."foo" "#,
         select_string_interp: r#" {}."${"foo"}" "#,
+        select_dynamic: "x: {}.${x}",
+        select_dynamic_constant_string: r#" {}.${"foo"} "#,
         has_attr: "x: x ? y",
         has_attr_compound: "x: x ? y.z",
         attrs: "{ x = 5; }",
