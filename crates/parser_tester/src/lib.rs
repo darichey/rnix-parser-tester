@@ -22,8 +22,10 @@ fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
     let ref_impl_json_str = ref_impl_to_json(nix_expr);
     let rnix_json_str = rnix_to_json(nix_expr).map_err(|err| err.to_string())?;
 
-    let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
-    let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
+    let lhs =
+        serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).map_err(|e| e.to_string())?;
+    let rhs =
+        serde_json::from_str::<serde_json::Value>(&rnix_json_str).map_err(|e| e.to_string())?;
 
     let config = Config::new(CompareMode::Strict);
 
