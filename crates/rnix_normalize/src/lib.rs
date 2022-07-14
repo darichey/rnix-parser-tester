@@ -207,15 +207,21 @@ impl Normalizer {
             BinOpKind::IsSet => NormalNixExpr::OpHasAttr {
                 subject: self.boxed_normalize(lhs),
                 path: {
-                    match self.normalize(rhs) {
-                        NormalNixExpr::Var(var) => vec![AttrName::Symbol(var)],
-                        NormalNixExpr::Select { subject, path, .. } => match *subject {
-                            NormalNixExpr::Var(var) => std::iter::once(AttrName::Symbol(var))
-                                .chain(path.into_iter())
-                                .collect(),
+                    match rhs {
+                        RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
+                            NormalNixExpr::String(s) => vec![AttrName::Symbol(s)],
+                            inner => vec![AttrName::Expr(inner)],
+                        },
+                        rhs => match self.normalize(rhs) {
+                            NormalNixExpr::Var(var) => vec![AttrName::Symbol(var)],
+                            NormalNixExpr::Select { subject, path, .. } => match *subject {
+                                NormalNixExpr::Var(var) => std::iter::once(AttrName::Symbol(var))
+                                    .chain(path.into_iter())
+                                    .collect(),
+                                _ => unreachable!(), // TODO: I think?
+                            },
                             _ => unreachable!(), // TODO: I think?
                         },
-                        _ => unreachable!(), // TODO: I think?
                     }
                 },
             },
