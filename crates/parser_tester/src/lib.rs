@@ -113,6 +113,7 @@ mod integration_tests {
         select_dynamic_constant_string: r#" {}.${"foo"} "#,
         has_attr: "x: x ? y",
         has_attr_compound: "x: x ? y.z",
+        has_attr_string: r#" {} ? "foo" "#,
         has_attr_dynamic: "x: {} ? ${x}",
         has_attr_dynamic_constant_string: r#" {} ? ${"foo"} "#,
         attrs: "{ x = 5; }",

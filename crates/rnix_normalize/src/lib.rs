@@ -213,7 +213,7 @@ impl Normalizer {
                             inner => vec![AttrName::Expr(inner)],
                         },
                         rhs => match self.normalize(rhs) {
-                            NormalNixExpr::Var(var) => vec![AttrName::Symbol(var)],
+                            NormalNixExpr::Var(s) | NormalNixExpr::String(s) => vec![AttrName::Symbol(s)],
                             NormalNixExpr::Select { subject, path, .. } => match *subject {
                                 NormalNixExpr::Var(var) => std::iter::once(AttrName::Symbol(var))
                                     .chain(path.into_iter())
