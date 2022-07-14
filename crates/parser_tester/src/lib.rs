@@ -189,6 +189,7 @@ mod integration_tests {
         // sort lexicographically on key name in both the ref impl and rnix normalization phases.
         // So, this test verifies that both are sorting correctly despite the ref impl's default behavior.
         attr_set_key_sorting: r#"{ description = "foo"; outputs = "bar"; a = "a"; }"#,
+        cur_pos: "__curPos",
     }
 }
 

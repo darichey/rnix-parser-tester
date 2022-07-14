@@ -281,7 +281,10 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     }
     else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
     {
-        throw NotImplemented();
+        // TODO: explain the difficulties in checking actual position information
+        return {
+            {"Var", "__curPos"},
+        };
     }
 
     throw NotImplemented();
