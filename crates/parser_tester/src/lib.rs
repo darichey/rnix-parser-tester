@@ -1,27 +1,26 @@
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
-use std::env;
+use std::{env, error::Error};
 
 fn ref_impl_to_json(nix_expr: &str) -> String {
     ref_impl_parser::Parser::new().parse(nix_expr)
 }
 
-fn rnix_to_json(nix_expr: &str) -> String {
-    let rnix_ast = rnix_ast::parse(nix_expr).unwrap();
+fn rnix_to_json(nix_expr: &str) -> Result<String, Box<dyn Error>> {
+    let rnix_ast = rnix_ast::parse(nix_expr)?;
     let normalized = rnix_normalize::normalize_nix_expr(
         rnix_ast,
-        env::current_dir()
-            .unwrap()
+        env::current_dir()?
             .into_os_string()
             .into_string()
-            .unwrap(),
-        env::var("HOME").unwrap(),
+            .map_err(|_| "into_string failed")?,
+        env::var("HOME")?,
     );
-    serde_json::to_string(&normalized).unwrap()
+    Ok(serde_json::to_string(&normalized).map_err(|_| "serde failed")?)
 }
 
 fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
     let ref_impl_json_str = ref_impl_to_json(nix_expr);
-    let rnix_json_str = rnix_to_json(nix_expr);
+    let rnix_json_str = rnix_to_json(nix_expr).map_err(|err| err.to_string())?;
 
     let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).unwrap();
     let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json_str).unwrap();
