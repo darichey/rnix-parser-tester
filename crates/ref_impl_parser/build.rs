@@ -1,6 +1,8 @@
 fn main() {
     cc::Build::new()
         .cpp(true)
+        .warnings(false)
+        .flag("-Wno-cpp")
         .file("reference_to_json/reference_to_json.cpp")
         .compile("reference_to_json");
 
