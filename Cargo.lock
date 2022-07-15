@@ -313,6 +313,7 @@ dependencies = [
  "rnix",
  "rnix_ast",
  "rnix_normalize",
+ "serde",
  "serde_json",
 ]
 

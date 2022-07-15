@@ -36,7 +36,9 @@ where
 
     let config = Config::new(CompareMode::Strict);
 
-    Ok(assert_json_matches_no_panic(&lhs, &rhs, config).map_err(JsonMismatch)?)
+    assert_json_matches_no_panic(&lhs, &rhs, config).map_err(JsonMismatch)?;
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -213,48 +215,3 @@ mod integration_tests {
         cur_pos: "__curPos",
     }
 }
-
-// #[cfg(test)]
-// mod nixpkgs_test {
-//     use std::{env, fs, path::Path};
-
-//     use crate::assert_parses_eq_no_panic;
-
-//     #[test]
-//     #[ignore] // Expensive, so ignored by default
-//     fn test() {
-//         let path = env::var("NIX_PATH").unwrap();
-//         let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
-
-//         recurse(Path::new(&nixpkgs["nixpkgs=".len()..]))
-//     }
-
-//     fn recurse(path: &Path) {
-//         if path.metadata().unwrap().is_file() {
-//             if path.extension().and_then(|s| s.to_str()) != Some("nix") {
-//                 return;
-//             }
-
-//             print!("{} ... ", path.display());
-//             let nix_expr = fs::read_to_string(path).unwrap();
-//             if nix_expr.trim().is_empty() {
-//                 return;
-//             }
-
-//             if let Err(err) = assert_parses_eq_no_panic(&nix_expr) {
-//                 println!("\x1b[31mFAILED\x1b[0m");
-//                 // println!("{err}");
-//             } else {
-//                 println!("\x1b[32mok\x1b[0m");
-//             }
-//         } else {
-//             for entry in path.read_dir().unwrap() {
-//                 let entry = entry.unwrap();
-//                 if entry.file_type().unwrap().is_symlink() {
-//                     continue;
-//                 }
-//                 recurse(&entry.path());
-//             }
-//         }
-//     }
-// }
