@@ -1,55 +1,68 @@
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
+use rnix_ast::ast::NixExpr as RNixExpr;
+use rnix_normalize::normalize_nix_expr;
 use std::{env, error::Error};
 
-fn ref_impl_to_json(nix_expr: &str) -> String {
-    ref_impl_parser::Parser::new().parse(nix_expr)
+pub fn get_ref_impl_json<S>(input: S) -> String
+where
+    S: AsRef<str>,
+{
+    ref_impl_parser::Parser::new().parse(input.as_ref())
 }
 
-fn rnix_to_json(nix_expr: &str) -> Result<String, Box<dyn Error>> {
-    let rnix_ast = rnix_ast::parse(nix_expr)?;
-    let normalized = rnix_normalize::normalize_nix_expr(
-        rnix_ast,
-        env::current_dir()?
-            .into_os_string()
-            .into_string()
-            .map_err(|_| "into_string failed")?,
+pub fn get_rnix_json<S>(input: S) -> Result<String, Box<dyn Error>>
+where
+    S: AsRef<str>,
+{
+    let ast = normalize_nix_expr(
+        RNixExpr::try_from(rnix::parse(input.as_ref()))?,
+        env::current_dir()?.into_os_string().into_string().unwrap(),
         env::var("HOME")?,
     );
-    Ok(serde_json::to_string(&normalized).map_err(|_| "serde failed")?)
+    let json = serde_json::to_string(&ast)?;
+
+    Ok(json)
 }
 
-fn assert_parses_eq_no_panic(nix_expr: &str) -> Result<(), String> {
-    let ref_impl_json_str = ref_impl_to_json(nix_expr);
-    let rnix_json_str = rnix_to_json(nix_expr).map_err(|err| err.to_string())?;
+pub fn assert_parses_eq_no_panic<S>(nix_expr: S) -> Result<(), Box<dyn Error>>
+where
+    S: AsRef<str>,
+{
+    let ref_impl_json = get_ref_impl_json(&nix_expr);
+    let rnix_json = get_rnix_json(&nix_expr)?;
 
-    let lhs =
-        serde_json::from_str::<serde_json::Value>(&ref_impl_json_str).map_err(|e| e.to_string())?;
-    let rhs =
-        serde_json::from_str::<serde_json::Value>(&rnix_json_str).map_err(|e| e.to_string())?;
+    let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json)?;
+    let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json)?;
 
     let config = Config::new(CompareMode::Strict);
 
-    assert_json_matches_no_panic(&lhs, &rhs, config).map_err(|err| {
-        // Re-serialize the expressions so the keys are in the same order on each side
-        let ref_impl_json_str = lhs.to_string();
-        let rnix_json_str = rhs.to_string();
-        format!(
-            "\n\nref_impl: {ref_impl_json_str}\n\nrnix:     {rnix_json_str}\n\n{}\n\n",
-            err
-        )
-    })
+    Ok(assert_json_matches_no_panic(&lhs, &rhs, config).map_err(JsonMismatch)?)
 }
 
-fn assert_parses_eq(nix_expr: &str) {
-    if let Err(err) = assert_parses_eq_no_panic(nix_expr) {
-        panic!("{err}");
+#[derive(Debug)]
+pub struct JsonMismatch(pub String);
+
+impl std::fmt::Display for JsonMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
+impl std::error::Error for JsonMismatch {}
+
 #[cfg(test)]
 mod integration_tests {
-    use crate::assert_parses_eq;
+    use crate::assert_parses_eq_no_panic;
     use indoc::indoc;
+
+    fn assert_parses_eq<S>(nix_expr: S)
+    where
+        S: AsRef<str>,
+    {
+        if let Err(err) = assert_parses_eq_no_panic(nix_expr) {
+            panic!("{err}");
+        }
+    }
 
     macro_rules! gen_tests {
         ($($name:ident : $nix:expr),* $(,)?) => {
@@ -201,47 +214,47 @@ mod integration_tests {
     }
 }
 
-#[cfg(test)]
-mod nixpkgs_test {
-    use std::{env, fs, path::Path};
+// #[cfg(test)]
+// mod nixpkgs_test {
+//     use std::{env, fs, path::Path};
 
-    use crate::assert_parses_eq_no_panic;
+//     use crate::assert_parses_eq_no_panic;
 
-    #[test]
-    #[ignore] // Expensive, so ignored by default
-    fn test() {
-        let path = env::var("NIX_PATH").unwrap();
-        let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
+//     #[test]
+//     #[ignore] // Expensive, so ignored by default
+//     fn test() {
+//         let path = env::var("NIX_PATH").unwrap();
+//         let nixpkgs = path.split(':').find(|s| s.starts_with("nixpkgs=")).unwrap();
 
-        recurse(Path::new(&nixpkgs["nixpkgs=".len()..]))
-    }
+//         recurse(Path::new(&nixpkgs["nixpkgs=".len()..]))
+//     }
 
-    fn recurse(path: &Path) {
-        if path.metadata().unwrap().is_file() {
-            if path.extension().and_then(|s| s.to_str()) != Some("nix") {
-                return;
-            }
+//     fn recurse(path: &Path) {
+//         if path.metadata().unwrap().is_file() {
+//             if path.extension().and_then(|s| s.to_str()) != Some("nix") {
+//                 return;
+//             }
 
-            print!("{} ... ", path.display());
-            let nix_expr = fs::read_to_string(path).unwrap();
-            if nix_expr.trim().is_empty() {
-                return;
-            }
+//             print!("{} ... ", path.display());
+//             let nix_expr = fs::read_to_string(path).unwrap();
+//             if nix_expr.trim().is_empty() {
+//                 return;
+//             }
 
-            if let Err(err) = assert_parses_eq_no_panic(&nix_expr) {
-                println!("\x1b[31mFAILED\x1b[0m");
-                // println!("{err}");
-            } else {
-                println!("\x1b[32mok\x1b[0m");
-            }
-        } else {
-            for entry in path.read_dir().unwrap() {
-                let entry = entry.unwrap();
-                if entry.file_type().unwrap().is_symlink() {
-                    continue;
-                }
-                recurse(&entry.path());
-            }
-        }
-    }
-}
+//             if let Err(err) = assert_parses_eq_no_panic(&nix_expr) {
+//                 println!("\x1b[31mFAILED\x1b[0m");
+//                 // println!("{err}");
+//             } else {
+//                 println!("\x1b[32mok\x1b[0m");
+//             }
+//         } else {
+//             for entry in path.read_dir().unwrap() {
+//                 let entry = entry.unwrap();
+//                 if entry.file_type().unwrap().is_symlink() {
+//                     continue;
+//                 }
+//                 recurse(&entry.path());
+//             }
+//         }
+//     }
+// }
