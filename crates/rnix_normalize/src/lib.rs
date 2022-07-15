@@ -3,7 +3,7 @@ use itertools::{chain, Either, Itertools};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
     KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren,
-    Path, PathPart, PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
+    PathPart, PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
 };
 
 pub fn normalize_nix_expr(expr: RNixExpr, base_path: String, home_path: String) -> NormalNixExpr {
@@ -414,17 +414,11 @@ impl Normalizer {
         }
     }
 
-    fn normalize_path(&self, path: Path) -> NormalNixExpr {
+    fn normalize_path(&self, path: rnix_ast::ast::Path) -> NormalNixExpr {
         match path.anchor {
-            Anchor::Absolute => NormalNixExpr::Path(path.path),
+            Anchor::Absolute => NormalNixExpr::Path(canonicalize(path.path)),
             Anchor::Relative => {
-                let s = if path.path == "./." {
-                    "".to_string()
-                } else {
-                    format!("/{}", path.path.strip_prefix("./").unwrap_or(&path.path))
-                };
-
-                NormalNixExpr::Path(format!("{}{}", self.base_path, s))
+                NormalNixExpr::Path(canonicalize(format!("{}/{}", self.base_path, path.path)))
             }
             Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, path.path)),
             // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
@@ -528,6 +522,35 @@ impl Normalizer {
             other => unreachable!("It shouldn't be possible for a key path to contain other kinds of expressions, but it did: {other:?}"),
         }
     }
+}
+
+fn canonicalize(path: String) -> String {
+    // Note that trailing slashes can't occur in user-written nix code, but they can appear in arguments to this function when normalizing interpolated paths.
+    // For example, when normalizing the path `/foo/${"bar"}`, normalize_path_with_interpol will call us with `"/foo/"`.
+    let has_trailing_slash = path.ends_with("/");
+
+    let mut res = vec![];
+
+    for comp in std::path::Path::new(&path).components() {
+        match comp {
+            std::path::Component::RootDir => {
+                res.push("");
+            }
+            std::path::Component::ParentDir => {
+                res.pop();
+            }
+            std::path::Component::Normal(s) => {
+                res.push(s.to_str().unwrap());
+            }
+            _ => {}
+        }
+    }
+
+    if has_trailing_slash {
+        res.push("");
+    }
+
+    res.join("/")
 }
 
 fn merge_attrs(attrs1: Vec<AttrDef>, attrs2: Vec<AttrDef>) -> Vec<AttrDef> {
