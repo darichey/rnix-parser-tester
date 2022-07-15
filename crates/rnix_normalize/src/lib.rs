@@ -1,4 +1,5 @@
 use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
+use itertools::{Either, Itertools};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
     KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren,
@@ -297,114 +298,81 @@ impl Normalizer {
     }
 
     fn normalize_attr_set(&self, attr_set: AttrSet) -> NormalNixExpr {
-        let mut attrs = vec![];
-        let mut dynamic_attrs = vec![];
-
         // For each entry, we generate some number of either dynamic or non-dynamic attrs
-        for entry in attr_set.entries {
-            match entry {
-                // If the entry is of the form `foo = bar`
-                Entry::KeyValue(KeyValue { mut key, value }) => {
-                    let key_head = key.path.remove(0);
-                    let key_tail = key.path;
+        let (attrs, dynamic_attrs): (Vec<Vec<AttrDef>>, Vec<DynamicAttrDef>) =
+            attr_set.entries.into_iter().partition_map(|entry| {
+                match entry {
+                    // If the entry is of the form `foo = bar`
+                    Entry::KeyValue(KeyValue { mut key, value }) => {
+                        let key_head = key.path.remove(0);
+                        let key_tail = key.path;
 
-                    let value = if key_tail.len() > 0 {
-                        // If the entry is of the form `x.y.z = bar`, then we expand into `x = { y.z = bar }` and recurse
-                        self.normalize_attr_set(AttrSet {
-                            entries: vec![Entry::KeyValue(KeyValue {
-                                key: Key { path: key_tail },
-                                value,
-                            })],
-                            recursive: false,
-                        })
-                    } else {
-                        // Otherwise, the value of the attr is simply the rhs of the equals as-is
-                        self.normalize(*value)
-                    };
-
-                    match key_head {
-                        // A Dynamic KeyPart is _definitely_ dynamic... _unless_ it's just a string with no interpolations (e.g., `${"foo"}`)! I know...
-                        RNixExpr::Dynamic(dynamic) => match self.normalize(*dynamic.inner) {
-                            NormalNixExpr::String(name) => {
-                                attrs.push(AttrDef {
-                                    name,
-                                    inherited: false,
-                                    expr: value,
-                                });
-                            }
-                            name_expr => {
-                                dynamic_attrs.push(DynamicAttrDef {
-                                    name_expr,
-                                    value_expr: value,
-                                });
-                            }
-                        },
-                        // If the key expression is a string, it might be dynamic
-                        RNixExpr::Str(str) => match self.normalize_str(str) {
-                            // If it turns out to just be a string, it's not dynamic
-                            NormalNixExpr::String(name) => {
-                                attrs.push(AttrDef {
-                                    name,
-                                    inherited: false,
-                                    expr: value,
-                                });
-                            }
-                            // If it had interpolations in it, it normalized to OpConcatStrings, and is dynamic
-                            name_expr @ NormalNixExpr::OpConcatStrings { .. } => dynamic_attrs
-                                .push(DynamicAttrDef {
-                                    name_expr,
-                                    value_expr: value,
-                                }),
-                            // TODO: normalize_str can't return anything else, but we should represent this impossibility more nicely
-                            _ => unreachable!(),
-                        },
-                        // If the key expression is an identifier, it's not dynamic
-                        RNixExpr::Ident(Ident { inner: name }) => {
-                            attrs.push(AttrDef {
-                                name,
-                                inherited: false,
-                                expr: value,
-                            });
-                        }
-                        _ => todo!(),
-                    }
-                }
-                // If the entry is of the form `inherit foo`
-                Entry::Inherit(Inherit { from, idents }) => {
-                    let subject = from.map(|from| self.boxed_normalize(*from.inner));
-
-                    let inherit_attrs: Vec<AttrDef> = match subject {
-                        None => idents
-                            .into_iter()
-                            .map(|ident| AttrDef {
-                                name: ident.inner.clone(),
-                                inherited: true,
-                                expr: NormalNixExpr::Var(ident.inner),
+                        let value = if key_tail.len() > 0 {
+                            // If the entry is of the form `x.y.z = bar`, then we expand into `x = { y.z = bar }` and recurse
+                            self.normalize_attr_set(AttrSet {
+                                entries: vec![Entry::KeyValue(KeyValue {
+                                    key: Key { path: key_tail },
+                                    value,
+                                })],
+                                recursive: false,
                             })
-                            .collect(),
-                        Some(subject) => idents
+                        } else {
+                            // Otherwise, the value of the attr is simply the rhs of the equals as-is
+                            self.normalize(*value)
+                        };
+
+                        self.normalize_key_part_as(
+                            key_head,
+                            |name| {
+                                vec![AttrDef {
+                                    name,
+                                    inherited: false,
+                                    expr: value.clone(),
+                                }]
+                            },
+                            |name_expr| DynamicAttrDef {
+                                name_expr,
+                                value_expr: value.clone(),
+                            },
+                        )
+                    }
+                    // If the entry is of the form `inherit foo`
+                    Entry::Inherit(Inherit { from, idents }) => {
+                        let subject = from.map(|from| self.boxed_normalize(*from.inner));
+
+                        let attrs: Vec<AttrDef> = idents
                             .into_iter()
-                            .map(|ident| AttrDef {
-                                name: ident.inner.clone(),
-                                inherited: false,
-                                expr: NormalNixExpr::Select {
-                                    subject: subject.clone(),
-                                    or_default: None,
-                                    path: vec![AttrName::Symbol(ident.inner)],
+                            .map(|ident| match &subject {
+                                Some(subject) => AttrDef {
+                                    name: ident.inner.clone(),
+                                    inherited: false,
+                                    expr: NormalNixExpr::Select {
+                                        subject: subject.clone(),
+                                        or_default: None,
+                                        path: vec![AttrName::Symbol(ident.inner)],
+                                    },
+                                },
+                                None => AttrDef {
+                                    name: ident.inner.clone(),
+                                    inherited: true,
+                                    expr: NormalNixExpr::Var(ident.inner),
                                 },
                             })
-                            .collect(),
-                    };
+                            .collect();
 
-                    attrs.extend(inherit_attrs);
+                        Either::Left(attrs)
+                    }
                 }
-            }
-        }
+            });
 
         // TODO merge duplicate keys
 
         // Sort attrs by key names. See attr_set_key_sorting test for explanation.
-        attrs.sort_by(|a, b| a.name.cmp(&b.name));
+        let attrs: Vec<AttrDef> = attrs
+            .into_iter()
+            .flatten()
+            .sorted_by(|a, b| a.name.cmp(&b.name))
+            .collect();
 
         NormalNixExpr::Attrs {
             rec: attr_set.recursive,
@@ -525,19 +493,42 @@ impl Normalizer {
 
     fn normalize_as_attr_path(&self, path: Vec<RNixExpr>) -> Vec<AttrName> {
         path.into_iter()
-            .map(|expr| match expr {
-                RNixExpr::Ident(Ident { inner }) => AttrName::Symbol(inner),
-                RNixExpr::Str(str) => match self.normalize_str(str) {
-                    NormalNixExpr::String(s) => AttrName::Symbol(s),
-                    concat @ NormalNixExpr::OpConcatStrings { .. } => AttrName::Expr(concat),
-                    _ => unreachable!(),
-                },
-                RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
-                    NormalNixExpr::String(s) => AttrName::Symbol(s),
-                    inner => AttrName::Expr(inner),
-                },
-                _ => unreachable!(),
+            .map(|expr| {
+                self.normalize_key_part_as(expr, AttrName::Symbol, AttrName::Expr)
+                    .into_inner()
             })
             .collect()
+    }
+
+    fn normalize_key_part_as<ND, D, FND, FD>(
+        &self,
+        expr: RNixExpr,
+        non_dynamic: FND,
+        dynamic: FD,
+    ) -> Either<ND, D>
+    where
+        FND: Fn(String) -> ND,
+        FD: Fn(NormalNixExpr) -> D,
+    {
+        match expr {
+            // If the expression is a plain identifier, it's definitely not dynamic
+            RNixExpr::Ident(Ident { inner }) => Either::Left(non_dynamic(inner)),
+            // If the expression is a string, it's...
+            RNixExpr::Str(str) => match self.normalize_str(str) {
+                // not dynamic if it's just a plain string
+                NormalNixExpr::String(s) => Either::Left(non_dynamic(s)),
+                // dynamic if it has string interpolations in it
+                concat @ NormalNixExpr::OpConcatStrings { .. } => Either::Right(dynamic(concat)),
+                other => unreachable!("It shouldn't be possible for normalize_str to return anything else, but it did: {other:?}"),
+            },
+            // If the expression is of the form `${x}`, it's...
+            RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
+                // _not_ dynamic if x is just a plain string (e.g., `${"foo"}`)
+                NormalNixExpr::String(s) => Either::Left(non_dynamic(s)),
+                // dynamic otherwise
+                inner => Either::Right(dynamic(inner)),
+            },
+            other => unreachable!("It shouldn't be possible for a key path to contain other kinds of expressions, but it did: {other:?}"),
+        }
     }
 }
