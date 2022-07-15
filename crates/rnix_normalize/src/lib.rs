@@ -1,5 +1,5 @@
 use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
-use itertools::{Either, Itertools};
+use itertools::{chain, Either, Itertools};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
     KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren,
@@ -365,14 +365,11 @@ impl Normalizer {
                 }
             });
 
-        // TODO merge duplicate keys
-
         // Sort attrs by key names. See attr_set_key_sorting test for explanation.
-        let attrs: Vec<AttrDef> = attrs
-            .into_iter()
-            .flatten()
-            .sorted_by(|a, b| a.name.cmp(&b.name))
-            .collect();
+        let attrs: Vec<AttrDef> = attrs.into_iter().flatten().collect();
+
+        let attrs = merge_attrs(attrs, vec![]);
+        let dynamic_attrs = merge_dynamic_attrs(dynamic_attrs, vec![]);
 
         NormalNixExpr::Attrs {
             rec: attr_set.recursive,
@@ -530,5 +527,56 @@ impl Normalizer {
             },
             other => unreachable!("It shouldn't be possible for a key path to contain other kinds of expressions, but it did: {other:?}"),
         }
+    }
+}
+
+fn merge_attrs(attrs1: Vec<AttrDef>, attrs2: Vec<AttrDef>) -> Vec<AttrDef> {
+    attrs1
+        .into_iter()
+        .chain(attrs2)
+        .into_grouping_map_by(|def| def.name.clone())
+        .fold_first(merge_attr_def)
+        .into_values()
+        .sorted_by(|a, b| a.name.cmp(&b.name))
+        .collect()
+}
+
+fn merge_dynamic_attrs(
+    dynamic_attrs1: Vec<DynamicAttrDef>,
+    dynamic_attrs2: Vec<DynamicAttrDef>,
+) -> Vec<DynamicAttrDef> {
+    // Nix disallows overlapping dynamic attrs. For example, `let x = "x"; in { ${x} = {}; ${x} = {}; }` is not legal.
+    // However, it doesn't check this until evaluation (because the key must be evaluated). During parsing, it just
+    // lumps all dynamic attributes together, like we do here.
+    chain!(dynamic_attrs1, dynamic_attrs2).collect()
+}
+
+fn merge_attr_def(def1: AttrDef, name: &String, def2: AttrDef) -> AttrDef {
+    if def1.inherited || def2.inherited {
+        panic!("{name} is inherited, but inherited defs cannot be merged.");
+    }
+
+    match (def1.expr, def2.expr) {
+        (
+            NormalNixExpr::Attrs {
+                rec: rec1,
+                attrs: attrs1,
+                dynamic_attrs: dynamic_attrs1,
+            },
+            NormalNixExpr::Attrs {
+                rec: rec2,
+                attrs: attrs2,
+                dynamic_attrs: dynamic_attrs2,
+            },
+        ) => AttrDef {
+            name: def1.name, // def1.name == def2.name == name
+            inherited: false,
+            expr: NormalNixExpr::Attrs {
+                rec: rec1 || rec2,
+                attrs: merge_attrs(attrs1, attrs2),
+                dynamic_attrs: merge_dynamic_attrs(dynamic_attrs1, dynamic_attrs2),
+            },
+        },
+        _ => panic!("Cannot merge {name}, because one of the values is not an attrset"),
     }
 }
