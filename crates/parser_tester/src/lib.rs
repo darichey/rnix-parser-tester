@@ -78,6 +78,7 @@ mod integration_tests {
         float_e_no_whole_part: ".5e01",
         string: r#" "hello world" "#,
         string_interpolated: r#" "hello ${"world"} ${123}" "#,
+        string_escaped_quote: r#" "hello \"world\"" "#,
         string_multiline: indoc!{r#"
             ''
             Hello world
@@ -91,11 +92,7 @@ mod integration_tests {
             ''
         "#},
         // https://github.com/nix-community/rnix-parser/issues/69
-        string_multiline_nested_quotes: indoc!{r#"
-            ''
-                The "android" ABI is not for 32-bit ARM. Use "androideabi" instead.
-            ''
-        "#},
+        string_multiline_nested_quotes: r#" ''"foo"'' "#,
         // https://github.com/kamadorueda/alejandra/issues/194
         string_escaped_interpol: r#" ''''\${[1 2]}'' "#,
         path_relative: "foo/bar",
