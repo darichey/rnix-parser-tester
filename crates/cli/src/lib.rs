@@ -109,7 +109,11 @@ mod integration_tests {
         // https://github.com/nix-community/rnix-parser/issues/69
         string_multiline_nested_quotes: r#" ''"foo"'' "#,
         // https://github.com/kamadorueda/alejandra/issues/194
-        string_escaped_interpol: r#" ''''\${[1 2]}'' "#,
+        string_escaped_interpol: indoc!{r#"
+            ''
+                foo ''\${ bar
+            ''
+        "#},
         path_relative: "foo/bar",
         path_relative_prefixed: "./foo/bar",
         path_relative_parent: "./foo/..",
