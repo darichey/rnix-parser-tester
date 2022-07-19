@@ -30,14 +30,15 @@ nlohmann::json attr_defs_to_json(ExprAttrs::AttrDefs attrDefs, const SymbolTable
               { return (std::string)symbols[a.first] < (std::string)symbols[b.first]; });
 
     auto res = nlohmann::json::array();
-    for (const auto &[key, value] : attrs) {
+    for (const auto &[key, value] : attrs)
+    {
         res.push_back({
             {"name", symbols[key]},
             {"inherited", value.inherited},
             {"expr", nix_expr_to_json(value.e, symbols)},
         });
     }
-    
+
     return res;
 }
 
@@ -61,13 +62,10 @@ nlohmann::json formals_to_json(Formals *formals, const SymbolTable &symbols)
         return nullptr;
     }
 
-    auto entries = nlohmann::json::array();
+    auto entries = nlohmann::json::object();
     for (const auto formal : formals->formals)
     {
-        entries.push_back({
-            {"name", symbols[formal.name]},
-            {"default", nix_expr_to_json(formal.def, symbols)},
-        });
+        entries.push_back({symbols[formal.name], {{"default", nix_expr_to_json(formal.def, symbols)}}});
     }
 
     return {

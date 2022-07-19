@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Serialize;
 
 #[derive(Clone, Serialize, Debug)]
@@ -83,12 +85,11 @@ pub struct DynamicAttrDef {
 
 #[derive(Clone, Serialize, Debug)]
 pub struct Formal {
-    pub name: String,
     pub default: Option<NixExpr>,
 }
 
 #[derive(Clone, Serialize, Debug)]
 pub struct Formals {
     pub ellipsis: bool,
-    pub entries: Vec<Formal>,
+    pub entries: HashMap<String, Formal>,
 }

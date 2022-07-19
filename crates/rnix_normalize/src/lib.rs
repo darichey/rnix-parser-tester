@@ -146,9 +146,13 @@ impl Normalizer {
                     entries: pattern
                         .entries
                         .into_iter()
-                        .map(|entry| Formal {
-                            name: entry.name.inner,
-                            default: entry.default.map(|default| self.normalize(*default)),
+                        .map(|entry| {
+                            (
+                                entry.name.inner,
+                                Formal {
+                                    default: entry.default.map(|default| self.normalize(*default)),
+                                },
+                            )
                         })
                         .collect(),
                 };
