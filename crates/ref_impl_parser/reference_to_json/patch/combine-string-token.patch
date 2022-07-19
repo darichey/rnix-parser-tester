@@ -1,0 +1,40 @@
+diff --git a/src/libexpr/parser.y b/src/libexpr/parser.y
+index 7c9b5a2db..75161c3c9 100644
+--- a/src/libexpr/parser.y
++++ b/src/libexpr/parser.y
+@@ -238,7 +238,12 @@ static Expr * stripIndentation(const PosIdx pos, SymbolTable & symbols,
+     size_t curDropped = 0;
+     size_t n = es.size();
+     auto i = es.begin();
++    std::optional<std::pair<PosIdx, std::string>> curString = std::nullopt;
+     const auto trimExpr = [&] (Expr * e) {
++        if (curString) {
++            es2->emplace_back(curString->first, new ExprString(curString->second));
++            curString = std::nullopt;
++        }
+         atStartOfLine = false;
+         curDropped = 0;
+         es2->emplace_back(i->first, e);
+@@ -273,12 +278,21 @@ static Expr * stripIndentation(const PosIdx pos, SymbolTable & symbols,
+                 s2 = std::string(s2, 0, p + 1);
+         }
+ 
+-        es2->emplace_back(i->first, new ExprString(s2));
++        if (curString) {
++            curString->second += s2;
++        } else {
++            curString = std::optional<std::pair<PosIdx, std::string>>{{i->first, s2}};
++        }
+     };
+     for (; i != es.end(); ++i, --n) {
+         std::visit(overloaded { trimExpr, trimString }, i->second);
+     }
+ 
++    if (curString) {
++        es2->emplace_back(curString->first, new ExprString(curString->second));
++        curString = std::nullopt;
++    }
++
+     /* If this is a single string, then don't do a concatenation. */
+     return es2->size() == 1 && dynamic_cast<ExprString *>((*es2)[0].second) ? (*es2)[0].second : new ExprConcatStrings(pos, true, es2);
+ }
