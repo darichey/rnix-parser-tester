@@ -206,7 +206,9 @@ mod integration_tests {
         negate: "-5",
         math_prec: "(0 + 1 + -2 - 3) * -(4 / 5)",
         import: "import ./foo.nix",
-        or_special_handling: "[1 or 2]",
+        // Disabled for now
+        // or_special_handling: "[1 or 2]",
+
         // This is a kind of sanity check relating to how the reference impl sorts attr set keys.
         // In particular, it maintains a global set of symbols, and attributes are sorted by when
         // their corresponding symbols were created. However, there are a bunch of built-in symbols
