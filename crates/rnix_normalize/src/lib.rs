@@ -2,8 +2,8 @@ use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalN
 use itertools::{chain, Either, Itertools};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
-    KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, OrDefault, Paren,
-    PathPart, PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
+    KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, Paren, PathPart,
+    PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
 };
 
 pub fn normalize_nix_expr(expr: RNixExpr, base_path: String, home_path: String) -> NormalNixExpr {
@@ -56,7 +56,6 @@ impl Normalizer {
             RNixExpr::LetIn(let_in) => self.normalize_let_in(let_in),
             RNixExpr::List(list) => self.normalize_list(list),
             RNixExpr::BinOp(bin_op) => self.normalize_bin_op(bin_op),
-            RNixExpr::OrDefault(or_default) => self.normalize_or_default(or_default),
             RNixExpr::Paren(paren) => self.normalize_paren(paren),
             RNixExpr::PatBind(pat_bind) => {
                 unhandled_normalization_path!(pat_bind, "lambda normalization")
@@ -82,6 +81,7 @@ impl Normalizer {
             RNixExpr::PathWithInterpol(path_with_interpol) => {
                 self.normalize_path_with_interpol(path_with_interpol)
             }
+            RNixExpr::HasAttr(has_attr) => self.normalize_has_attr(has_attr),
         }
     }
 
@@ -127,12 +127,10 @@ impl Normalizer {
     }
 
     fn normalize_select(&self, select: Select) -> NormalNixExpr {
-        let (subject, path) = self.linearize_nested_select(select);
-
         NormalNixExpr::Select {
-            subject: self.boxed_normalize(subject),
-            or_default: None,
-            path: self.normalize_as_attr_path(path),
+            subject: self.boxed_normalize(*select.set),
+            or_default: select.default.map(|default| self.boxed_normalize(*default)),
+            path: self.normalize_as_attr_path(select.key.path),
         }
     }
 
@@ -201,16 +199,6 @@ impl Normalizer {
             BinOpKind::Concat => {
                 NormalNixExpr::OpConcatLists(self.boxed_normalize(lhs), self.boxed_normalize(rhs))
             }
-            BinOpKind::IsSet => NormalNixExpr::OpHasAttr {
-                subject: self.boxed_normalize(lhs),
-                path: match rhs {
-                    RNixExpr::Select(select) => {
-                        let (subject, path) = self.linearize_nested_select(select);
-                        self.normalize_as_attr_path(std::iter::once(subject).chain(path).collect())
-                    }
-                    rhs => self.normalize_as_attr_path(vec![rhs]),
-                },
-            },
             BinOpKind::Update => {
                 NormalNixExpr::OpUpdate(self.boxed_normalize(lhs), self.boxed_normalize(rhs))
             }
@@ -271,23 +259,6 @@ impl Normalizer {
             BinOpKind::Or => {
                 NormalNixExpr::OpOr(self.boxed_normalize(lhs), self.boxed_normalize(rhs))
             }
-        }
-    }
-
-    // The reference parser merges the Select and OrDefault nodes
-    fn normalize_or_default(&self, or_default: OrDefault) -> NormalNixExpr {
-        // TODO: kinda sucks
-        match self.normalize_select(or_default.index) {
-            NormalNixExpr::Select {
-                subject,
-                or_default: None,
-                path,
-            } => NormalNixExpr::Select {
-                subject,
-                or_default: Some(self.boxed_normalize(*or_default.default)),
-                path,
-            },
-            _ => unreachable!(),
         }
     }
 
@@ -473,17 +444,11 @@ impl Normalizer {
         }
     }
 
-    fn linearize_nested_select(&self, select: Select) -> (RNixExpr, Vec<RNixExpr>) {
-        let mut subject = *select.set;
-        let mut path: Vec<RNixExpr> = vec![*select.index];
-
-        while let RNixExpr::Select(Select { set, index }) = subject {
-            path.push(*index);
-            subject = *set;
+    fn normalize_has_attr(&self, has_attr: rnix_ast::ast::HasAttr) -> NormalNixExpr {
+        NormalNixExpr::OpHasAttr {
+            subject: self.boxed_normalize(*has_attr.set),
+            path: self.normalize_as_attr_path(has_attr.key.path),
         }
-
-        path.reverse();
-        (subject, path)
     }
 
     fn normalize_as_attr_path(&self, path: Vec<RNixExpr>) -> Vec<AttrName> {

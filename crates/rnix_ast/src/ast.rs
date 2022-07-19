@@ -21,7 +21,6 @@ pub enum NixExpr {
     LetIn(LetIn),
     List(List),
     BinOp(BinOp),
-    OrDefault(OrDefault),
     Paren(Paren),
     PatBind(PatBind),
     PatEntry(PatEntry),
@@ -35,6 +34,7 @@ pub enum NixExpr {
     Value(NixValue),
     With(With),
     PathWithInterpol(PathWithInterpol),
+    HasAttr(HasAttr),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,7 +74,8 @@ pub struct IfElse {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Select {
     pub set: Box<NixExpr>,
-    pub index: Box<NixExpr>,
+    pub key: Key,
+    pub default: Option<Box<NixExpr>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -115,12 +116,6 @@ pub struct BinOp {
     pub lhs: Box<NixExpr>,
     pub operator: BinOpKind,
     pub rhs: Box<NixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct OrDefault {
-    pub index: Select,
-    pub default: Box<NixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -189,6 +184,12 @@ pub struct With {
 pub struct PathWithInterpol {
     pub base_path: Path,
     pub parts: Vec<PathPart>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HasAttr {
+    pub set: Box<NixExpr>,
+    pub key: Key,
 }
 
 #[derive(Clone, Debug, PartialEq)]
