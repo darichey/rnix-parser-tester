@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     env,
     error::Error,
-    fs::{self, File},
+    fs::File,
     io::{self, Read, Write},
     path::PathBuf,
 };
@@ -10,7 +10,7 @@ use std::{
 use clap::{clap_derive::ArgEnum, Parser, Subcommand};
 use globwalk::GlobWalkerBuilder;
 
-use parser_tester_cli::{assert_parses_eq_no_panic, get_ref_impl_json, get_rnix_json};
+use parser_tester_cli::{assert_parses_eq_no_panic, get_ref_impl_json, get_rnix_json, NixSource};
 use serde::{Deserialize, Serialize};
 
 /// Utility program to test/use various aspects of rnix-parser-tester
@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             recursive,
         } => {
             for (file, input) in walk(file, recursive)? {
-                dump(file, &input?, &parser)?;
+                dump(file, input, &parser)?;
             }
         }
         Commands::Compare {
@@ -93,7 +93,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 print!("{file} ... ");
                 io::stdout().flush()?;
 
-                if let Err(_) = assert_parses_eq_no_panic(input?) {
+                if let Err(_) = assert_parses_eq_no_panic(input) {
                     println!("\x1b[31mNOT EQUAL\x1b[0m");
                     if save_summary.is_some() {
                         not_equal.insert(file);
@@ -161,7 +161,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn walk(
     file: Option<String>,
     recursive: bool,
-) -> Result<Box<dyn Iterator<Item = (String, Result<String, io::Error>)>>, Box<dyn Error>> {
+) -> Result<Box<dyn Iterator<Item = (String, NixSource)>>, Box<dyn Error>> {
     match file {
         Some(file) => {
             let file = normalize(file)?;
@@ -183,20 +183,20 @@ fn walk(
                         .map(|nix_file| {
                             (
                                 nix_file.path().display().to_string(),
-                                fs::read_to_string(nix_file.path()),
+                                NixSource::File(nix_file.path().to_path_buf()),
                             )
                         }),
                 ))
             } else {
                 Ok(Box::new(std::iter::once((
                     file.display().to_string(),
-                    fs::read_to_string(file),
+                    NixSource::File(file),
                 ))))
             }
         }
         None => Ok(Box::new(std::iter::once((
             "<input from stdin>".to_string(),
-            read_stdin(),
+            NixSource::String(read_stdin()?),
         )))),
     }
 }
@@ -223,18 +223,22 @@ fn path_to_nixpkgs() -> Result<PathBuf, Box<dyn Error>> {
     Ok(PathBuf::from(&nixpkgs["nixpkgs=".len()..]))
 }
 
-fn dump(filename: String, input: &String, parser: &Vec<ParserImpl>) -> Result<(), Box<dyn Error>> {
+fn dump(
+    filename: String,
+    input: NixSource,
+    parser: &Vec<ParserImpl>,
+) -> Result<(), Box<dyn Error>> {
     println!("{filename} ...");
 
     if parser.contains(&ParserImpl::Reference) {
         println!("==== Reference impl json ====");
-        println!("{}", get_ref_impl_json(input));
+        println!("{}", get_ref_impl_json(&input));
         println!();
     }
 
     if parser.contains(&ParserImpl::Rnix) {
         println!("==== rnix-parser json ====");
-        println!("{}", get_rnix_json(input)?);
+        println!("{}", get_rnix_json(&input)?);
         println!();
     }
 

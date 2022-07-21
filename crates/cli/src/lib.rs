@@ -3,35 +3,52 @@ use rnix_ast::ast::NixExpr as RNixExpr;
 use rnix_normalize::normalize_nix_expr;
 use serde::Deserialize;
 use serde_json::Value;
-use std::{env, error::Error};
+use std::{env, error::Error, fs, path::PathBuf};
 
-pub fn get_ref_impl_json<S>(input: S) -> String
-where
-    S: AsRef<str>,
-{
-    ref_impl_parser::Parser::new().parse(input.as_ref())
+pub enum NixSource {
+    String(String),
+    File(PathBuf),
 }
 
-pub fn get_rnix_json<S>(input: S) -> Result<String, Box<dyn Error>>
-where
-    S: AsRef<str>,
-{
-    let ast = normalize_nix_expr(
-        RNixExpr::try_from(rnix::parse(input.as_ref()))?,
-        env::current_dir()?.into_os_string().into_string().unwrap(),
-        env::var("HOME")?,
-    );
+pub fn get_ref_impl_json(source: &NixSource) -> String {
+    let parser = ref_impl_parser::Parser::new();
+    match source {
+        NixSource::String(input) => parser.parse_from_str(input),
+        NixSource::File(path) => parser.parse_from_file(path),
+    }
+}
+
+pub fn get_rnix_json(source: &NixSource) -> Result<String, Box<dyn Error>> {
+    let home_path = env::var("HOME")?;
+    let ast = match source {
+        NixSource::String(input) => normalize_nix_expr(
+            RNixExpr::try_from(rnix::parse(input))?,
+            env::current_dir()?.into_os_string().into_string().unwrap(),
+            home_path,
+        ),
+        NixSource::File(path) => {
+            let input = fs::read_to_string(path)?;
+            normalize_nix_expr(
+                RNixExpr::try_from(rnix::parse(input.as_str()))?,
+                path.parent()
+                    .unwrap()
+                    .to_path_buf()
+                    .into_os_string()
+                    .into_string()
+                    .unwrap(),
+                home_path,
+            )
+        }
+    };
+
     let json = serde_json::to_string(&ast)?;
 
     Ok(json)
 }
 
-pub fn assert_parses_eq_no_panic<S>(nix_expr: S) -> Result<(), Box<dyn Error>>
-where
-    S: AsRef<str>,
-{
-    let ref_impl_json = get_ref_impl_json(&nix_expr);
-    let rnix_json = get_rnix_json(&nix_expr)?;
+pub fn assert_parses_eq_no_panic(source: NixSource) -> Result<(), Box<dyn Error>> {
+    let ref_impl_json = get_ref_impl_json(&source);
+    let rnix_json = get_rnix_json(&source)?;
 
     let lhs = deser_json(ref_impl_json)?;
     let rhs = deser_json(rnix_json)?;
@@ -63,14 +80,11 @@ impl std::error::Error for JsonMismatch {}
 
 #[cfg(test)]
 mod integration_tests {
-    use crate::assert_parses_eq_no_panic;
+    use crate::{assert_parses_eq_no_panic, NixSource};
     use indoc::indoc;
 
-    fn assert_parses_eq<S>(nix_expr: S)
-    where
-        S: AsRef<str>,
-    {
-        if let Err(err) = assert_parses_eq_no_panic(nix_expr) {
+    fn assert_parses_eq(nix_expr: String) {
+        if let Err(err) = assert_parses_eq_no_panic(NixSource::String(nix_expr)) {
             panic!("{err}");
         }
     }
@@ -81,7 +95,7 @@ mod integration_tests {
                 paste::item! {
                     #[test]
                     fn [< test_ $name >]() {
-                        assert_parses_eq($nix);
+                        assert_parses_eq($nix.to_string());
                     }
                 }
             )*

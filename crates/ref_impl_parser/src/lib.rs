@@ -1,4 +1,7 @@
-use std::ffi::{CStr, CString};
+use std::{
+    ffi::{CStr, CString},
+    path::Path,
+};
 
 mod ffi;
 
@@ -12,11 +15,26 @@ impl Parser {
         Parser { ffi_parser }
     }
 
-    pub fn parse(&self, nix_expr: &str) -> String {
-        let nix_expr = CString::new(nix_expr).unwrap();
+    pub fn parse_from_str<S>(&self, nix_expr: S) -> String
+    where
+        S: AsRef<str>,
+    {
+        let nix_expr = CString::new(nix_expr.as_ref()).unwrap();
         let nix_expr = nix_expr.as_ptr();
         unsafe {
-            let json_str = ffi::nix_expr_to_json_str(self.ffi_parser, nix_expr);
+            let json_str = ffi::parse_from_str(self.ffi_parser, nix_expr);
+            CStr::from_ptr(json_str).to_str().unwrap().to_string()
+        }
+    }
+
+    pub fn parse_from_file<P>(&self, path: P) -> String
+    where
+        P: AsRef<Path>,
+    {
+        let path = CString::new(path.as_ref().display().to_string()).unwrap();
+        let path = path.as_ptr();
+        unsafe {
+            let json_str = ffi::parse_from_file(self.ffi_parser, path);
             CStr::from_ptr(json_str).to_str().unwrap().to_string()
         }
     }
@@ -35,6 +53,6 @@ mod reference_to_json_tests {
     #[test]
     fn test_bad_parse_doesnt_crash() {
         let parser = Parser::new();
-        parser.parse("bad expression");
+        parser.parse_from_str("bad expression");
     }
 }
