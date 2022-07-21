@@ -314,7 +314,7 @@ extern "C" void destroy_parser(Parser *parser)
     delete parser;
 }
 
-const char *nix_expr_to_json_str(Parser *parser, const std::function<nix::Expr *()> &get_expr)
+const char *nix_expr_to_json_str(Parser *parser, const std::function<nix::Expr *()> &get_expr, bool *ok)
 {
     try
     {
@@ -323,24 +323,37 @@ const char *nix_expr_to_json_str(Parser *parser, const std::function<nix::Expr *
         auto json_str = nix_expr_to_json(expr, parser->state->symbols).dump();
         auto c_str = json_str.c_str();
 
+        if (ok)
+        {
+            *ok = true;
+        }
+
         return strdup(c_str);
     }
     catch (std::exception &e)
     {
-        // FIXME: this should probably be structured in some way instead of pretending to be a json string
+        if (ok)
+        {
+            *ok = false;
+        }
+
         auto what = e.what();
         return strdup(what);
     }
 }
 
-extern "C" const char *parse_from_str(Parser *parser, const char *nix_expr)
+extern "C" const char *parse_from_str(Parser *parser, const char *nix_expr, bool *ok)
 {
-    return nix_expr_to_json_str(parser, [&]
-                            { return parser->state->parseExprFromString(nix_expr, absPath(".")); });
+    return nix_expr_to_json_str(
+        parser, [&]
+        { return parser->state->parseExprFromString(nix_expr, absPath(".")); },
+        ok);
 }
 
-extern "C" const char *parse_from_file(Parser *parser, const char *file_path)
+extern "C" const char *parse_from_file(Parser *parser, const char *file_path, bool *ok)
 {
-    return nix_expr_to_json_str(parser, [&]
-                            { return parser->state->parseExprFromFile(file_path); });
+    return nix_expr_to_json_str(
+        parser, [&]
+        { return parser->state->parseExprFromFile(file_path); },
+        ok);
 }

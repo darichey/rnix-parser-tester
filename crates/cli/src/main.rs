@@ -10,7 +10,9 @@ use std::{
 use clap::{clap_derive::ArgEnum, Parser, Subcommand};
 use globwalk::GlobWalkerBuilder;
 
-use parser_tester_cli::{assert_parses_eq_no_panic, get_ref_impl_json, get_rnix_json, NixSource};
+use parser_tester_cli::{
+    check_parses_eq, get_ref_impl_json, get_rnix_json, CheckResult, NixSource,
+};
 use serde::{Deserialize, Serialize};
 
 /// Utility program to test/use various aspects of rnix-parser-tester
@@ -88,20 +90,37 @@ fn main() -> Result<(), Box<dyn Error>> {
         } => {
             let mut equal = HashSet::new();
             let mut not_equal = HashSet::new();
+            let mut reference_impl_error = HashSet::new();
+            let mut rnix_error = HashSet::new();
 
             for (file, input) in walk(file, recursive)? {
                 print!("{file} ... ");
                 io::stdout().flush()?;
 
-                if let Err(_) = assert_parses_eq_no_panic(input) {
-                    println!("\x1b[31mNOT EQUAL\x1b[0m");
-                    if save_summary.is_some() {
-                        not_equal.insert(file);
+                match check_parses_eq(input) {
+                    CheckResult::Equal => {
+                        println!("\x1b[32mequal\x1b[0m");
+                        if save_summary.is_some() {
+                            equal.insert(file);
+                        }
                     }
-                } else {
-                    println!("\x1b[32mequal\x1b[0m");
-                    if save_summary.is_some() {
-                        equal.insert(file);
+                    CheckResult::NotEqual(_) => {
+                        println!("\x1b[31mNOT EQUAL\x1b[0m");
+                        if save_summary.is_some() {
+                            not_equal.insert(file);
+                        }
+                    }
+                    CheckResult::ReferenceImplError(_) => {
+                        println!("\x1b[33mreference impl error\x1b[0m");
+                        if save_summary.is_some() {
+                            reference_impl_error.insert(file);
+                        }
+                    }
+                    CheckResult::RNixError(_) => {
+                        println!("\x1b[33mrnix-parser error\x1b[0m");
+                        if save_summary.is_some() {
+                            rnix_error.insert(file);
+                        }
                     }
                 }
             }
@@ -109,7 +128,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             match save_summary {
                 Some(summary_file) => serde_json::to_writer_pretty(
                     File::create(summary_file)?,
-                    &Summary { equal, not_equal },
+                    &Summary {
+                        equal,
+                        not_equal,
+                        reference_impl_error,
+                        rnix_error,
+                    },
                 )?,
                 None => {}
             }
@@ -146,9 +170,25 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("== Summary ==");
             println!("# equal before: {}", summary_before.equal.len());
             println!("# not equal before: {}", summary_before.not_equal.len());
+            println!(
+                "# reference impl errors before: {}",
+                summary_before.reference_impl_error.len()
+            );
+            println!(
+                "# rnix-parser errors before: {}",
+                summary_before.rnix_error.len()
+            );
             println!();
             println!("# equal after: {}", summary_after.equal.len());
             println!("# not equal after: {}", summary_after.not_equal.len());
+            println!(
+                "# reference impl errors after: {}",
+                summary_after.reference_impl_error.len()
+            );
+            println!(
+                "# rnix-parser errors after: {}",
+                summary_after.rnix_error.len()
+            );
             println!();
             println!("# progressions: {num_progressions}");
             println!("# regressions: {num_regressions}");
@@ -232,7 +272,7 @@ fn dump(
 
     if parser.contains(&ParserImpl::Reference) {
         println!("==== Reference impl json ====");
-        println!("{}", get_ref_impl_json(&input));
+        println!("{}", get_ref_impl_json(&input)?);
         println!();
     }
 
@@ -272,4 +312,6 @@ impl std::error::Error for AppError {}
 struct Summary {
     equal: HashSet<String>,
     not_equal: HashSet<String>,
+    reference_impl_error: HashSet<String>,
+    rnix_error: HashSet<String>,
 }

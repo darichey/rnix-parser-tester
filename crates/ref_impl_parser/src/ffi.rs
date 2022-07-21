@@ -9,7 +9,14 @@ pub(crate) struct Parser {
 extern "C" {
     pub(crate) fn init_parser() -> *const Parser;
     pub(crate) fn destroy_parser(parser: *const Parser);
-    pub(crate) fn parse_from_str(parser: *const Parser, nix_expr: *const c_char) -> *const c_char;
-    pub(crate) fn parse_from_file(parser: *const Parser, file_path: *const c_char)
-        -> *const c_char;
+    pub(crate) fn parse_from_str(
+        parser: *const Parser,
+        nix_expr: *const c_char,
+        ok: *mut bool,
+    ) -> *const c_char;
+    pub(crate) fn parse_from_file(
+        parser: *const Parser,
+        file_path: *const c_char,
+        ok: *mut bool,
+    ) -> *const c_char;
 }

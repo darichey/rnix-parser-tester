@@ -10,7 +10,7 @@ pub enum NixSource {
     File(PathBuf),
 }
 
-pub fn get_ref_impl_json(source: &NixSource) -> String {
+pub fn get_ref_impl_json(source: &NixSource) -> Result<String, Box<dyn Error>> {
     let parser = ref_impl_parser::Parser::new();
     match source {
         NixSource::String(input) => parser.parse_from_str(input),
@@ -46,18 +46,33 @@ pub fn get_rnix_json(source: &NixSource) -> Result<String, Box<dyn Error>> {
     Ok(json)
 }
 
-pub fn assert_parses_eq_no_panic(source: NixSource) -> Result<(), Box<dyn Error>> {
-    let ref_impl_json = get_ref_impl_json(&source);
-    let rnix_json = get_rnix_json(&source)?;
+pub enum CheckResult {
+    Equal,
+    NotEqual(String),
+    ReferenceImplError(Box<dyn Error>),
+    RNixError(Box<dyn Error>),
+}
 
-    let lhs = deser_json(ref_impl_json)?;
-    let rhs = deser_json(rnix_json)?;
+pub fn check_parses_eq(source: NixSource) -> CheckResult {
+    let ref_impl_json = match get_ref_impl_json(&source) {
+        Ok(s) => s,
+        Err(err) => return CheckResult::ReferenceImplError(err),
+    };
+
+    let rnix_json = match get_rnix_json(&source) {
+        Ok(s) => s,
+        Err(err) => return CheckResult::RNixError(err),
+    };
+
+    let lhs = deser_json(ref_impl_json).unwrap();
+    let rhs = deser_json(rnix_json).unwrap();
 
     let config = Config::new(CompareMode::Strict);
 
-    assert_json_matches_no_panic(&lhs, &rhs, config).map_err(JsonMismatch)?;
-
-    Ok(())
+    match assert_json_matches_no_panic(&lhs, &rhs, config) {
+        Ok(()) => CheckResult::Equal,
+        Err(err) => CheckResult::NotEqual(err),
+    }
 }
 
 fn deser_json(json: String) -> Result<Value, serde_json::Error> {
@@ -80,12 +95,15 @@ impl std::error::Error for JsonMismatch {}
 
 #[cfg(test)]
 mod integration_tests {
-    use crate::{assert_parses_eq_no_panic, NixSource};
+    use crate::{check_parses_eq, CheckResult, NixSource};
     use indoc::indoc;
 
-    fn assert_parses_eq(nix_expr: String) {
-        if let Err(err) = assert_parses_eq_no_panic(NixSource::String(nix_expr)) {
-            panic!("{err}");
+    fn assert_parses_eq(nix_expr: &str) {
+        match check_parses_eq(NixSource::String(nix_expr.to_string())) {
+            CheckResult::Equal => {}
+            CheckResult::NotEqual(err) => panic!("{err}"),
+            CheckResult::ReferenceImplError(err) => panic!("{err}"),
+            CheckResult::RNixError(err) => panic!("{err}"),
         }
     }
 
@@ -95,7 +113,7 @@ mod integration_tests {
                 paste::item! {
                     #[test]
                     fn [< test_ $name >]() {
-                        assert_parses_eq($nix.to_string());
+                        assert_parses_eq($nix);
                     }
                 }
             )*
