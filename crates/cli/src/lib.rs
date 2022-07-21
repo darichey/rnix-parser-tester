@@ -1,6 +1,8 @@
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
 use rnix_ast::ast::NixExpr as RNixExpr;
 use rnix_normalize::normalize_nix_expr;
+use serde::Deserialize;
+use serde_json::Value;
 use std::{env, error::Error};
 
 pub fn get_ref_impl_json<S>(input: S) -> String
@@ -31,14 +33,21 @@ where
     let ref_impl_json = get_ref_impl_json(&nix_expr);
     let rnix_json = get_rnix_json(&nix_expr)?;
 
-    let lhs = serde_json::from_str::<serde_json::Value>(&ref_impl_json)?;
-    let rhs = serde_json::from_str::<serde_json::Value>(&rnix_json)?;
+    let lhs = deser_json(ref_impl_json)?;
+    let rhs = deser_json(rnix_json)?;
 
     let config = Config::new(CompareMode::Strict);
 
     assert_json_matches_no_panic(&lhs, &rhs, config).map_err(JsonMismatch)?;
 
     Ok(())
+}
+
+fn deser_json(json: String) -> Result<Value, serde_json::Error> {
+    let mut deserializer = serde_json::Deserializer::from_str(&json);
+    deserializer.disable_recursion_limit();
+    let deserializer = serde_stacker::Deserializer::new(&mut deserializer);
+    Value::deserialize(deserializer)
 }
 
 #[derive(Debug)]

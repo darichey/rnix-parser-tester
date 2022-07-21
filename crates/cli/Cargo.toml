@@ -7,7 +7,7 @@ edition = "2021"
 ref_impl_parser = { path = "../ref_impl_parser" }
 rnix_normalize = { path = "../rnix_normalize" }
 rnix_ast = { path = "../rnix_ast" }
-serde_json = "1.0.82"
+serde_json = { version = "1.0.82", features = ["unbounded_depth"] }
 assert-json-diff = "2.0.2"
 indoc = "1.0.6"
 paste = "1.0.7"
@@ -15,3 +15,4 @@ clap = { version = "3.2.12", features = ["derive"] }
 rnix = { path = "../../../rnix-parser" }
 globwalk = "0.8.1"
 serde = { version = "1.0", features = ["derive"] }
+serde_stacker = "0.1.5"
