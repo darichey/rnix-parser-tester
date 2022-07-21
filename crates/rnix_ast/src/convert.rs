@@ -109,9 +109,6 @@ impl TryFrom<ParsedType> for NixExpr {
             ParsedType::LetIn(let_in) => convert_let_in(let_in).map(NixExpr::LetIn),
             ParsedType::List(list) => convert_list(list).map(NixExpr::List),
             ParsedType::BinOp(bin_op) => convert_bin_op(bin_op).map(NixExpr::BinOp),
-            ParsedType::OrDefault(or_default) => {
-                convert_or_default(or_default).map(NixExpr::OrDefault)
-            }
             ParsedType::Paren(paren) => convert_paren(paren).map(NixExpr::Paren),
             ParsedType::PatBind(pat_bind) => convert_pat_bind(pat_bind).map(NixExpr::PatBind),
             ParsedType::PatEntry(pat_entry) => convert_pat_entry(pat_entry).map(NixExpr::PatEntry),
@@ -129,6 +126,7 @@ impl TryFrom<ParsedType> for NixExpr {
             ParsedType::PathWithInterpol(path_with_interpol) => {
                 convert_path_with_interpol(path_with_interpol).map(NixExpr::PathWithInterpol)
             }
+            ParsedType::HasAttr(has_attr) => convert_has_attr(has_attr).map(NixExpr::HasAttr),
         }
     }
 }
@@ -176,7 +174,11 @@ fn convert_if_else(if_else: rnix::types::IfElse) -> Result<ast::IfElse, ToAstErr
 fn convert_select(select: rnix::types::Select) -> Result<ast::Select, ToAstError> {
     Ok(ast::Select {
         set: try_convert!(select.set()),
-        index: try_convert!(select.index()),
+        key: try_convert_and_then!(select.key(), convert_key),
+        default: select
+            .default()
+            .map(|default| Ok(try_convert!(default)))
+            .transpose()?,
     })
 }
 
@@ -226,13 +228,6 @@ fn convert_bin_op(bin_op: rnix::types::BinOp) -> Result<ast::BinOp, ToAstError> 
         lhs: try_convert!(bin_op.lhs()),
         operator: bin_op.operator().ok_or(ToAstError::EmptyBranch)?,
         rhs: try_convert!(bin_op.rhs()),
-    })
-}
-
-fn convert_or_default(or_default: rnix::types::OrDefault) -> Result<ast::OrDefault, ToAstError> {
-    Ok(ast::OrDefault {
-        index: try_convert_and_then!(or_default.index(), convert_select),
-        default: try_convert!(or_default.default()),
     })
 }
 
@@ -327,6 +322,13 @@ fn convert_path_with_interpol(
             .ok_or(ToAstError::EmptyBranch)?
             .map_err(ToAstError::ValueError)?,
         parts: try_convert_all!(path_with_interpol.parts().into_iter(), convert_path_part),
+    })
+}
+
+fn convert_has_attr(has_attr: rnix::types::HasAttr) -> Result<ast::HasAttr, ToAstError> {
+    Ok(ast::HasAttr {
+        set: try_convert!(has_attr.set()),
+        key: try_convert_and_then!(has_attr.key(), convert_key),
     })
 }
 
