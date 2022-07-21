@@ -91,18 +91,24 @@ impl Normalizer {
 
     // Normalize by squashing nested Apply nodes to a single Call node, collecting function arguments into a list
     fn normalize_apply(&self, apply: Apply) -> NormalNixExpr {
-        let mut fun = *apply.lambda;
-        let mut args: Vec<NormalNixExpr> = vec![self.normalize(*apply.value)];
+        let mut fun: NormalNixExpr = self.normalize(*apply.lambda);
+        let last_arg = self.normalize(*apply.value);
 
-        while let RNixExpr::Apply(Apply { lambda, value }) = fun {
-            args.push(self.normalize(*value));
-            fun = *lambda;
+        let mut args: Vec<NormalNixExpr> = vec![];
+
+        while let NormalNixExpr::Call {
+            fun: inner_fun,
+            args: inner_args,
+        } = fun
+        {
+            args.extend(inner_args);
+            fun = *inner_fun;
         }
 
-        args.reverse();
+        args.push(last_arg);
 
         NormalNixExpr::Call {
-            fun: self.boxed_normalize(fun),
+            fun: Box::new(fun),
             args,
         }
     }

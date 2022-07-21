@@ -168,6 +168,7 @@ mod integration_tests {
         lambda_formals_at_right: "{ x }@inp: x",
         call: "f: f 0",
         call_multiple_args: "f: f 0 1 2",
+        call_multiple_args_grouped: "f: (f 0) 1",
         call_nested: "f: g: f 0 (g 0 1) 2",
         let: "let x = 5; in x",
         let_multiple: "let x = 5; y = 3.14; in x",
