@@ -519,7 +519,12 @@ fn canonicalize(path: String) -> String {
         res.push("");
     }
 
-    res.join("/")
+    let res = res.join("/");
+    if res.is_empty() {
+        "/".to_string()
+    } else {
+        res
+    }
 }
 
 fn merge_attrs(attrs1: Vec<AttrDef>, attrs2: Vec<AttrDef>) -> Vec<AttrDef> {
