@@ -1,0 +1,5 @@
+# This is temporary to workaround the fact that the reference impl parser isn't thread safe, specifically the GC.
+# The easiest way to fix this would probably be to use nix with the GC disabled, but we need to wait for
+# https://github.com/NixOS/nix/pull/6741. It's also not clear what the implications of running without the GC are even once that's done.
+[env]
+RUST_TEST_THREADS = "1"
