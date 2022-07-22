@@ -80,6 +80,6 @@ mod reference_to_json_tests {
     #[test]
     fn test_bad_parse_doesnt_crash() {
         let parser = Parser::new();
-        parser.parse_from_str("bad expression");
+        let _ = parser.parse_from_str("bad expression");
     }
 }
