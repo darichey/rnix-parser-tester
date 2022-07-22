@@ -66,8 +66,6 @@ test.nix ...
 {"Let":{"attrs":{"Attrs":{"rec":false,"attrs":[{"name":"x","inherited":false,"expr":{"Int":3}}],"dynamic_attrs":[]}},"body":{"OpConcatStrings":{"force_string":false,"es":[{"Var":"x"},{"Int":2}]}}}}
 ```
 
-(The above ASTs might look a little strange. See TODO for more details.)
-
 This is especially useful for when `compare` reports that some expression _isn't_ parsed the same by both parsers. In that case, we can use `dump` and our favorite JSON differ (e.g., http://www.jsondiff.com/) to debug further.
 
 ### `compare`ing all of nixpkgs
@@ -154,6 +152,11 @@ Note that normalization does not go the other way (i.e., reference impl AST -> r
 The main challenge with this project is also its biggest caveat: the normalization phase. For some expressions, we have to do _a lot_ of work to get the rnix-parser AST to look like the reference impl AST. In practice, that means that if the tool reports that some expression is not parsed equally, it means that _either_ rnix-parser didn't parse it correctly, _or_ we did not normalize the AST correctly. In other words, normalization opens us up to false negatives.
 
 However, we can have decent confidence that normalization does not easily result in false positives (i.e., rnix-parser parses something incorrectly, but then we accidentally normalize it to be equal to what the reference impl gives us), because normalization does not inject new information into the parse. It only restructures what is already there.
+
+### Limited Data
+The primary data set this tool is targeting is nixpkgs. While this set is very large (probably the largest set of valid Nix expressions), that doesn't necessarily mean that it contains every possible edge case in the Nix grammar. In fact, it definitely doesn't. For example, [at the time of writing](https://github.com/NixOS/nixpkgs/tree/aeed5a4f931232d7ef4c05ab8b3c1c81b9af26b5), nixpkgs contains zero instances of a float with no decimal part (e.g., `1.`). This is a perfectly valid Nix expression, but by testing only on nixpkgs, we would not be able to tell that rnix-parser [does not currently support it](https://github.com/nix-community/rnix-parser/pull/99#issuecomment-1186459773).
+
+This isn't an inherent limitation of the tool since it isn't directly tied to nixpkgs. It can be used on any set of Nix expressions. But the main takeaway of this caveat is that just because we can parse nixpkgs correctly does not mean that we can parse all of Nix correctly (although perhaps it can be said that we can parse all Nix expressions that really matter. Who is writing `1.` anyways?).
 
 ### Breaking our own rules
 > We generally try to keep the reference impl AST 100% untouched, because we define "correct" to mean "whatever the reference impl says"

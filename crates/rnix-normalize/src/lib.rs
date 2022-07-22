@@ -89,7 +89,8 @@ impl Normalizer {
         Box::new(self.normalize(expr))
     }
 
-    // Normalize by squashing nested Apply nodes to a single Call node, collecting function arguments into a list
+    /// Normalize by squashing nested Apply nodes to a single [`NormalNixExpr::Call`] node,
+    /// collecting function arguments into a list.
     fn normalize_apply(&self, apply: Apply) -> NormalNixExpr {
         let mut fun: NormalNixExpr = self.normalize(*apply.lambda);
         let last_arg = self.normalize(*apply.value);
@@ -113,6 +114,7 @@ impl Normalizer {
         }
     }
 
+    /// Normalize trivially by normalizing child expressions and repacking into [`NormalNixExpr::Assert`].
     fn normalize_assert(&self, assert: Assert) -> NormalNixExpr {
         NormalNixExpr::Assert {
             cond: self.boxed_normalize(*assert.condition),
@@ -120,10 +122,12 @@ impl Normalizer {
         }
     }
 
+    /// Normalize trivially by repacking the inner string into [`NormalNixExpr::Var`].
     fn normalize_ident(&self, ident: Ident) -> NormalNixExpr {
         NormalNixExpr::Var(ident.inner)
     }
 
+    /// Normalize trivially by normalizing child expressions and repacking into [`NormalNixExpr::If`].
     fn normalize_if_else(&self, if_else: IfElse) -> NormalNixExpr {
         NormalNixExpr::If {
             cond: self.boxed_normalize(*if_else.condition),
@@ -132,6 +136,8 @@ impl Normalizer {
         }
     }
 
+    /// Normalize most of it trivially by normalizing child expressions and repacking into [`NormalNixExpr::Select`].
+    /// The interesting part here is normalizing the key path which is described in `normalize_as_attr_path`.
     fn normalize_select(&self, select: Select) -> NormalNixExpr {
         NormalNixExpr::Select {
             subject: self.boxed_normalize(*select.set),
@@ -140,6 +146,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_lambda(&self, lambda: Lambda) -> NormalNixExpr {
         let (arg, formals) = match *lambda.arg {
             RNixExpr::Ident(ident) => (Some(ident.inner), None),
@@ -175,6 +182,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_legacy_let(&self, legacy_let: LegacyLet) -> NormalNixExpr {
         NormalNixExpr::Select {
             subject: Box::new(self.normalize_attr_set(AttrSet {
@@ -186,6 +194,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_let_in(&self, let_in: LetIn) -> NormalNixExpr {
         NormalNixExpr::Let {
             attrs: Box::new(self.normalize_attr_set(AttrSet {
@@ -196,10 +205,12 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_list(&self, list: List) -> NormalNixExpr {
         NormalNixExpr::List(list.items.into_iter().map(|e| self.normalize(e)).collect())
     }
 
+    /// TODO
     fn normalize_bin_op(&self, bin_op: BinOp) -> NormalNixExpr {
         let lhs = *bin_op.lhs;
         let rhs = *bin_op.rhs;
@@ -270,16 +281,19 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_paren(&self, paren: Paren) -> NormalNixExpr {
         // The ref impl has no concept of parens, so simply discard it
         self.normalize(*paren.inner)
     }
 
+    /// TODO
     fn normalize_root(&self, root: Root) -> NormalNixExpr {
         // The ref impl has no concept of a root, so simply discard it
         self.normalize(*root.inner)
     }
 
+    /// TODO
     fn normalize_attr_set(&self, attr_set: AttrSet) -> NormalNixExpr {
         // For each entry, we generate some number of either dynamic or non-dynamic attrs
         let (attrs, dynamic_attrs): (Vec<Vec<AttrDef>>, Vec<DynamicAttrDef>) =
@@ -361,6 +375,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_str(&self, str: Str) -> NormalNixExpr {
         // If any of the parts are Ast, then this string has interoplations in it
         if str.parts.iter().any(|part| matches!(part, StrPart::Ast(_))) {
@@ -388,6 +403,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_unary_op(&self, unary_op: UnaryOp) -> NormalNixExpr {
         match unary_op.operator {
             UnaryOpKind::Invert => NormalNixExpr::OpNot(self.boxed_normalize(*unary_op.value)),
@@ -399,6 +415,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_path(&self, path: rnix_ast::ast::Path) -> NormalNixExpr {
         match path.anchor {
             Anchor::Absolute => NormalNixExpr::Path(canonicalize(path.path)),
@@ -417,6 +434,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_value(&self, value: NixValue) -> NormalNixExpr {
         match value {
             NixValue::Float(nf) => NormalNixExpr::Float(nf),
@@ -426,6 +444,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_with(&self, with: With) -> NormalNixExpr {
         NormalNixExpr::With {
             attrs: self.boxed_normalize(*with.namespace),
@@ -433,6 +452,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_path_with_interpol(&self, path_with_interpol: PathWithInterpol) -> NormalNixExpr {
         // The reference impl treats path interpolation as string concatenation of all of the interpolated parts with the first part being expanded into a Path
         let base_path = self.normalize_path(path_with_interpol.base_path);
@@ -454,6 +474,7 @@ impl Normalizer {
         }
     }
 
+    /// TODO
     fn normalize_has_attr(&self, has_attr: rnix_ast::ast::HasAttr) -> NormalNixExpr {
         NormalNixExpr::OpHasAttr {
             subject: self.boxed_normalize(*has_attr.set),
