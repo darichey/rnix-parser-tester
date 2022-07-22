@@ -1,7 +1,0 @@
-[package]
-name = "rnix_ast"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-rnix = { path = "../../../rnix-parser" }

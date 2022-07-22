@@ -1,0 +1,9 @@
+cargo-features = ["workspace-inheritance"]
+
+[package]
+name = "rnix-ast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rnix = { workspace = true }

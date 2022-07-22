@@ -10,7 +10,7 @@ use std::{
 use clap::{clap_derive::ArgEnum, Parser, Subcommand};
 use globwalk::GlobWalkerBuilder;
 
-use parser_tester_cli::{
+use cli::{
     check_parses_eq, get_ref_impl_json, get_rnix_json, CheckResult, NixSource,
 };
 use serde::{Deserialize, Serialize};

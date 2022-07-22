@@ -1,4 +1,4 @@
-use ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
+use normal_ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
 use itertools::{chain, Either, Itertools};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,

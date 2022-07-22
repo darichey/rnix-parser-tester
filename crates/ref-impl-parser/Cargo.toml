@@ -1,5 +1,5 @@
 [package]
-name = "ref_impl_parser"
+name = "ref-impl-parser"
 version = "0.1.0"
 edition = "2021"
 

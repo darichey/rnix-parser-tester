@@ -1,9 +1,0 @@
-[package]
-name = "rnix_normalize"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-ast = { path = "../ast" }
-rnix_ast = { path = "../rnix_ast" }
-itertools = "0.10.3"

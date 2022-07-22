@@ -8,7 +8,7 @@
           (final: prev: {
             nix = prev.nix.overrideAttrs (old: {
               patches = (old.patches or [ ]) ++ [
-                ./crates/ref_impl_parser/reference_to_json/patch/combine-string-token.patch
+                ./crates/ref-impl-parser/reference_to_json/patch/combine-string-token.patch
               ];
             });
           })
