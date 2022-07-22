@@ -188,7 +188,7 @@ impl Normalizer {
         NormalNixExpr::Let {
             attrs: Box::new(self.normalize_attr_set(AttrSet {
                 entries: let_in.entries,
-                recursive: false, // TODO: can let be rec?
+                recursive: false,
             })),
             body: self.boxed_normalize(*let_in.body),
         }

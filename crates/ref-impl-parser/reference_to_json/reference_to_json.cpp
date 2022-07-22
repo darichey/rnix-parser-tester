@@ -279,7 +279,13 @@ nlohmann::json nix_expr_to_json(Expr *expr, const SymbolTable &symbols)
     }
     else if (auto exprPos = dynamic_cast<ExprPos *>(expr))
     {
-        // TODO: explain the difficulties in checking actual position information
+        // Just treat this as the var/expression that creates the ExprPos ast node.
+        // It would be difficult to implement the rnix-parser equivalent of this
+        // node if we were to include the actual info from ExprPos. This is because
+        // despite the fact that _every_ rowan syntax node includes position information,
+        // it is represented only be a byte offset, not a line and column. Converting
+        // between these is non-trivial, so we choose not to for now.
+        // See https://github.com/rust-analyzer/rowan/issues/17
         return {
             {"Var", "__curPos"},
         };

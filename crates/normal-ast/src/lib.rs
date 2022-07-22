@@ -34,7 +34,7 @@ pub enum NormalNixExpr {
         args: Vec<NormalNixExpr>,
     },
     Let {
-        attrs: Box<NormalNixExpr>, // TODO
+        attrs: Box<NormalNixExpr>,
         body: Box<NormalNixExpr>,
     },
     With {
