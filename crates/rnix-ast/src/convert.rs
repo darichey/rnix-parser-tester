@@ -6,7 +6,7 @@ use rnix::{
     SyntaxNode, TextSize, AST,
 };
 
-use crate::ast::{self, NixExpr};
+use crate::ast::{self, RNixExpr};
 
 #[derive(Debug)]
 pub enum ToAstError {
@@ -37,39 +37,39 @@ impl fmt::Display for ToAstError {
 
 impl std::error::Error for ToAstError {}
 
-impl TryFrom<AST> for NixExpr {
+impl TryFrom<AST> for RNixExpr {
     type Error = ToAstError;
 
     fn try_from(value: AST) -> Result<Self, Self::Error> {
-        NixExpr::try_from(value.root().inner())
+        RNixExpr::try_from(value.root().inner())
     }
 }
 
-impl TryFrom<Option<SyntaxNode>> for NixExpr {
+impl TryFrom<Option<SyntaxNode>> for RNixExpr {
     type Error = ToAstError;
 
     fn try_from(value: Option<SyntaxNode>) -> Result<Self, Self::Error> {
         match value {
             None => Err(ToAstError::EmptyBranch),
-            Some(value) => NixExpr::try_from(value),
+            Some(value) => RNixExpr::try_from(value),
         }
     }
 }
 
-impl TryFrom<SyntaxNode> for NixExpr {
+impl TryFrom<SyntaxNode> for RNixExpr {
     type Error = ToAstError;
 
     fn try_from(value: SyntaxNode) -> Result<Self, Self::Error> {
         match ParsedType::try_from(value) {
             Err(err) => Err(ToAstError::ParsedTypeError(err)),
-            Ok(value) => NixExpr::try_from(value),
+            Ok(value) => RNixExpr::try_from(value),
         }
     }
 }
 
 macro_rules! try_convert {
     ($e:expr) => {
-        Box::new(NixExpr::try_from($e)?)
+        Box::new(RNixExpr::try_from($e)?)
     };
 }
 
@@ -85,48 +85,48 @@ macro_rules! try_convert_and_then {
     };
 }
 
-impl TryFrom<ParsedType> for NixExpr {
+impl TryFrom<ParsedType> for RNixExpr {
     type Error = ToAstError;
 
     fn try_from(value: ParsedType) -> Result<Self, Self::Error> {
         match value {
-            ParsedType::Apply(apply) => convert_apply(apply).map(NixExpr::Apply),
-            ParsedType::Assert(assert) => convert_assert(assert).map(NixExpr::Assert),
-            ParsedType::Key(key) => convert_key(key).map(NixExpr::Key),
-            ParsedType::Dynamic(dynamic) => convert_dynamic(dynamic).map(NixExpr::Dynamic),
+            ParsedType::Apply(apply) => convert_apply(apply).map(RNixExpr::Apply),
+            ParsedType::Assert(assert) => convert_assert(assert).map(RNixExpr::Assert),
+            ParsedType::Key(key) => convert_key(key).map(RNixExpr::Key),
+            ParsedType::Dynamic(dynamic) => convert_dynamic(dynamic).map(RNixExpr::Dynamic),
             ParsedType::Error(_) => Err(ToAstError::ParseError),
-            ParsedType::Ident(ident) => convert_ident(ident).map(NixExpr::Ident),
-            ParsedType::IfElse(if_else) => convert_if_else(if_else).map(NixExpr::IfElse),
-            ParsedType::Select(select) => convert_select(select).map(NixExpr::Select),
-            ParsedType::Inherit(inherit) => convert_inherit(inherit).map(NixExpr::Inherit),
+            ParsedType::Ident(ident) => convert_ident(ident).map(RNixExpr::Ident),
+            ParsedType::IfElse(if_else) => convert_if_else(if_else).map(RNixExpr::IfElse),
+            ParsedType::Select(select) => convert_select(select).map(RNixExpr::Select),
+            ParsedType::Inherit(inherit) => convert_inherit(inherit).map(RNixExpr::Inherit),
             ParsedType::InheritFrom(inherit_from) => {
-                convert_inherit_from(inherit_from).map(NixExpr::InheritFrom)
+                convert_inherit_from(inherit_from).map(RNixExpr::InheritFrom)
             }
-            ParsedType::Lambda(lambda) => convert_lambda(lambda).map(NixExpr::Lambda),
+            ParsedType::Lambda(lambda) => convert_lambda(lambda).map(RNixExpr::Lambda),
             ParsedType::LegacyLet(legacy_let) => {
-                convert_legacy_let(legacy_let).map(NixExpr::LegacyLet)
+                convert_legacy_let(legacy_let).map(RNixExpr::LegacyLet)
             }
-            ParsedType::LetIn(let_in) => convert_let_in(let_in).map(NixExpr::LetIn),
-            ParsedType::List(list) => convert_list(list).map(NixExpr::List),
-            ParsedType::BinOp(bin_op) => convert_bin_op(bin_op).map(NixExpr::BinOp),
-            ParsedType::Paren(paren) => convert_paren(paren).map(NixExpr::Paren),
-            ParsedType::PatBind(pat_bind) => convert_pat_bind(pat_bind).map(NixExpr::PatBind),
-            ParsedType::PatEntry(pat_entry) => convert_pat_entry(pat_entry).map(NixExpr::PatEntry),
-            ParsedType::Pattern(pattern) => convert_pattern(pattern).map(NixExpr::Pattern),
-            ParsedType::Root(root) => convert_root(root).map(NixExpr::Root),
-            ParsedType::AttrSet(attr_set) => convert_attr_set(attr_set).map(NixExpr::AttrSet),
-            ParsedType::KeyValue(key_value) => convert_key_value(key_value).map(NixExpr::KeyValue),
-            ParsedType::Str(str) => convert_str(str).map(NixExpr::Str),
+            ParsedType::LetIn(let_in) => convert_let_in(let_in).map(RNixExpr::LetIn),
+            ParsedType::List(list) => convert_list(list).map(RNixExpr::List),
+            ParsedType::BinOp(bin_op) => convert_bin_op(bin_op).map(RNixExpr::BinOp),
+            ParsedType::Paren(paren) => convert_paren(paren).map(RNixExpr::Paren),
+            ParsedType::PatBind(pat_bind) => convert_pat_bind(pat_bind).map(RNixExpr::PatBind),
+            ParsedType::PatEntry(pat_entry) => convert_pat_entry(pat_entry).map(RNixExpr::PatEntry),
+            ParsedType::Pattern(pattern) => convert_pattern(pattern).map(RNixExpr::Pattern),
+            ParsedType::Root(root) => convert_root(root).map(RNixExpr::Root),
+            ParsedType::AttrSet(attr_set) => convert_attr_set(attr_set).map(RNixExpr::AttrSet),
+            ParsedType::KeyValue(key_value) => convert_key_value(key_value).map(RNixExpr::KeyValue),
+            ParsedType::Str(str) => convert_str(str).map(RNixExpr::Str),
             ParsedType::StrInterpol(str_interpol) => {
-                convert_str_interpol(str_interpol).map(NixExpr::StrInterpol)
+                convert_str_interpol(str_interpol).map(RNixExpr::StrInterpol)
             }
-            ParsedType::UnaryOp(unary_op) => convert_unary_op(unary_op).map(NixExpr::UnaryOp),
-            ParsedType::Value(value) => convert_value(value).map(NixExpr::Value),
-            ParsedType::With(with) => convert_with(with).map(NixExpr::With),
+            ParsedType::UnaryOp(unary_op) => convert_unary_op(unary_op).map(RNixExpr::UnaryOp),
+            ParsedType::Value(value) => convert_value(value).map(RNixExpr::Value),
+            ParsedType::With(with) => convert_with(with).map(RNixExpr::With),
             ParsedType::PathWithInterpol(path_with_interpol) => {
-                convert_path_with_interpol(path_with_interpol).map(NixExpr::PathWithInterpol)
+                convert_path_with_interpol(path_with_interpol).map(RNixExpr::PathWithInterpol)
             }
-            ParsedType::HasAttr(has_attr) => convert_has_attr(has_attr).map(NixExpr::HasAttr),
+            ParsedType::HasAttr(has_attr) => convert_has_attr(has_attr).map(RNixExpr::HasAttr),
         }
     }
 }
@@ -147,7 +147,7 @@ fn convert_assert(assert: rnix::types::Assert) -> Result<ast::Assert, ToAstError
 
 fn convert_key(key: rnix::types::Key) -> Result<ast::Key, ToAstError> {
     Ok(ast::Key {
-        path: try_convert_all!(key.path(), NixExpr::try_from),
+        path: try_convert_all!(key.path(), RNixExpr::try_from),
     })
 }
 
@@ -219,7 +219,7 @@ fn convert_let_in(let_in: rnix::types::LetIn) -> Result<ast::LetIn, ToAstError> 
 
 fn convert_list(list: rnix::types::List) -> Result<ast::List, ToAstError> {
     Ok(ast::List {
-        items: try_convert_all!(list.items(), NixExpr::try_from),
+        items: try_convert_all!(list.items(), RNixExpr::try_from),
     })
 }
 

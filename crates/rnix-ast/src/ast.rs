@@ -5,7 +5,7 @@ pub use rnix::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum NixExpr {
+pub enum RNixExpr {
     Apply(Apply),
     Assert(Assert),
     Key(Key),
@@ -39,24 +39,24 @@ pub enum NixExpr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Apply {
-    pub lambda: Box<NixExpr>,
-    pub value: Box<NixExpr>,
+    pub lambda: Box<RNixExpr>,
+    pub value: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Assert {
-    pub condition: Box<NixExpr>,
-    pub body: Box<NixExpr>,
+    pub condition: Box<RNixExpr>,
+    pub body: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Key {
-    pub path: Vec<NixExpr>,
+    pub path: Vec<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dynamic {
-    pub inner: Box<NixExpr>,
+    pub inner: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,16 +66,16 @@ pub struct Ident {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfElse {
-    pub condition: Box<NixExpr>,
-    pub body: Box<NixExpr>,
-    pub else_body: Box<NixExpr>,
+    pub condition: Box<RNixExpr>,
+    pub body: Box<RNixExpr>,
+    pub else_body: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Select {
-    pub set: Box<NixExpr>,
+    pub set: Box<RNixExpr>,
     pub key: Key,
-    pub default: Option<Box<NixExpr>>,
+    pub default: Option<Box<RNixExpr>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,13 +86,13 @@ pub struct Inherit {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InheritFrom {
-    pub inner: Box<NixExpr>,
+    pub inner: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lambda {
-    pub arg: Box<NixExpr>,
-    pub body: Box<NixExpr>,
+    pub arg: Box<RNixExpr>,
+    pub body: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -103,24 +103,24 @@ pub struct LegacyLet {
 #[derive(Clone, Debug, PartialEq)]
 pub struct LetIn {
     pub entries: Vec<Entry>,
-    pub body: Box<NixExpr>,
+    pub body: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct List {
-    pub items: Vec<NixExpr>,
+    pub items: Vec<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinOp {
-    pub lhs: Box<NixExpr>,
+    pub lhs: Box<RNixExpr>,
     pub operator: BinOpKind,
-    pub rhs: Box<NixExpr>,
+    pub rhs: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Paren {
-    pub inner: Box<NixExpr>,
+    pub inner: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,7 +131,7 @@ pub struct PatBind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PatEntry {
     pub name: Ident,
-    pub default: Option<Box<NixExpr>>,
+    pub default: Option<Box<RNixExpr>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -143,7 +143,7 @@ pub struct Pattern {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Root {
-    pub inner: Box<NixExpr>,
+    pub inner: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -155,7 +155,7 @@ pub struct AttrSet {
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeyValue {
     pub key: Key,
-    pub value: Box<NixExpr>,
+    pub value: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -165,19 +165,19 @@ pub struct Str {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StrInterpol {
-    pub inner: Box<NixExpr>,
+    pub inner: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnaryOp {
     pub operator: UnaryOpKind,
-    pub value: Box<NixExpr>,
+    pub value: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct With {
-    pub namespace: Box<NixExpr>,
-    pub body: Box<NixExpr>,
+    pub namespace: Box<RNixExpr>,
+    pub body: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -188,7 +188,7 @@ pub struct PathWithInterpol {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HasAttr {
-    pub set: Box<NixExpr>,
+    pub set: Box<RNixExpr>,
     pub key: Key,
 }
 

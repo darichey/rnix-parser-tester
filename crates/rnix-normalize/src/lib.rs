@@ -1,9 +1,9 @@
-use normal_ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NixExpr as NormalNixExpr};
 use itertools::{chain, Either, Itertools};
+use normal_ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NormalNixExpr};
 use rnix_ast::ast::{
     Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
-    KeyValue, Lambda, LegacyLet, LetIn, List, NixExpr as RNixExpr, NixValue, Paren, PathPart,
-    PathWithInterpol, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
+    KeyValue, Lambda, LegacyLet, LetIn, List, NixValue, Paren, PathPart, PathWithInterpol,
+    RNixExpr, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
 };
 
 pub fn normalize_nix_expr(expr: RNixExpr, base_path: String, home_path: String) -> NormalNixExpr {

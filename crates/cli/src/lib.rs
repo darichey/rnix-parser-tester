@@ -1,5 +1,5 @@
 use assert_json_diff::{assert_json_matches_no_panic, CompareMode, Config};
-use rnix_ast::ast::NixExpr as RNixExpr;
+use rnix_ast::ast::RNixExpr;
 use rnix_normalize::normalize_nix_expr;
 use serde::Deserialize;
 use serde_json::Value;

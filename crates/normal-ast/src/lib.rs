@@ -3,19 +3,19 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 #[derive(Clone, Serialize, Debug)]
-pub enum NixExpr {
+pub enum NormalNixExpr {
     Int(i64),
     Float(f64),
     String(String),
     Path(String),
     Var(String),
     Select {
-        subject: Box<NixExpr>,
-        or_default: Option<Box<NixExpr>>,
+        subject: Box<NormalNixExpr>,
+        or_default: Option<Box<NormalNixExpr>>,
         path: Vec<AttrName>,
     },
     OpHasAttr {
-        subject: Box<NixExpr>,
+        subject: Box<NormalNixExpr>,
         path: Vec<AttrName>,
     },
     Attrs {
@@ -23,69 +23,69 @@ pub enum NixExpr {
         attrs: Vec<AttrDef>,
         dynamic_attrs: Vec<DynamicAttrDef>,
     },
-    List(Vec<NixExpr>),
+    List(Vec<NormalNixExpr>),
     Lambda {
         arg: Option<String>,
         formals: Option<Formals>,
-        body: Box<NixExpr>,
+        body: Box<NormalNixExpr>,
     },
     Call {
-        fun: Box<NixExpr>,
-        args: Vec<NixExpr>,
+        fun: Box<NormalNixExpr>,
+        args: Vec<NormalNixExpr>,
     },
     Let {
-        attrs: Box<NixExpr>, // TODO
-        body: Box<NixExpr>,
+        attrs: Box<NormalNixExpr>, // TODO
+        body: Box<NormalNixExpr>,
     },
     With {
-        attrs: Box<NixExpr>,
-        body: Box<NixExpr>,
+        attrs: Box<NormalNixExpr>,
+        body: Box<NormalNixExpr>,
     },
     If {
-        cond: Box<NixExpr>,
-        then: Box<NixExpr>,
-        else_: Box<NixExpr>,
+        cond: Box<NormalNixExpr>,
+        then: Box<NormalNixExpr>,
+        else_: Box<NormalNixExpr>,
     },
     Assert {
-        cond: Box<NixExpr>,
-        body: Box<NixExpr>,
+        cond: Box<NormalNixExpr>,
+        body: Box<NormalNixExpr>,
     },
-    OpNot(Box<NixExpr>),
-    OpEq(Box<NixExpr>, Box<NixExpr>),
-    OpNEq(Box<NixExpr>, Box<NixExpr>),
-    OpAnd(Box<NixExpr>, Box<NixExpr>),
-    OpOr(Box<NixExpr>, Box<NixExpr>),
-    OpImpl(Box<NixExpr>, Box<NixExpr>),
-    OpUpdate(Box<NixExpr>, Box<NixExpr>),
-    OpConcatLists(Box<NixExpr>, Box<NixExpr>),
+    OpNot(Box<NormalNixExpr>),
+    OpEq(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpNEq(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpAnd(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpOr(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpImpl(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpUpdate(Box<NormalNixExpr>, Box<NormalNixExpr>),
+    OpConcatLists(Box<NormalNixExpr>, Box<NormalNixExpr>),
     OpConcatStrings {
         force_string: bool,
-        es: Vec<NixExpr>,
+        es: Vec<NormalNixExpr>,
     },
 }
 
 #[derive(Clone, Serialize, Debug)]
 pub enum AttrName {
     Symbol(String),
-    Expr(NixExpr),
+    Expr(NormalNixExpr),
 }
 
 #[derive(Clone, Serialize, Debug)]
 pub struct AttrDef {
     pub name: String,
     pub inherited: bool,
-    pub expr: NixExpr,
+    pub expr: NormalNixExpr,
 }
 
 #[derive(Clone, Serialize, Debug)]
 pub struct DynamicAttrDef {
-    pub name_expr: NixExpr,
-    pub value_expr: NixExpr,
+    pub name_expr: NormalNixExpr,
+    pub value_expr: NormalNixExpr,
 }
 
 #[derive(Clone, Serialize, Debug)]
 pub struct Formal {
-    pub default: Option<NixExpr>,
+    pub default: Option<NormalNixExpr>,
 }
 
 #[derive(Clone, Serialize, Debug)]
