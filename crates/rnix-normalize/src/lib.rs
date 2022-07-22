@@ -163,7 +163,9 @@ impl Normalizer {
 
                 (at, Some(formals))
             }
-            _ => unreachable!(),
+            other => unreachable!(
+                "I thought lambda args could only be Ident or Pattern, but it was: {other:?}"
+            ),
         };
 
         NormalNixExpr::Lambda {
@@ -379,7 +381,9 @@ impl Normalizer {
             match &*str.parts {
                 [StrPart::Literal(lit)] => NormalNixExpr::String(lit.to_string()),
                 [] => NormalNixExpr::String("".to_string()),
-                _ => unreachable!(),
+                other => unreachable!(
+                    "String parts contained only multiple separate literals: {other:?}"
+                ),
             }
         }
     }
