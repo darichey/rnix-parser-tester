@@ -403,6 +403,7 @@ checksum = "a3f87b73ce11b1619a3c6332f45341e0047173771e8b8b73f87bfeefb7b56244"
 [[package]]
 name = "rnix"
 version = "0.11.0-dev"
+source = "git+https://github.com/darichey/rnix-parser?branch=redo-string-parts#d56b15ff4ae9e1c03a28c1f0894f6881761925dd"
 dependencies = [
  "cbitset",
  "rowan",
