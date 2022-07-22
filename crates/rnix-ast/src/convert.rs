@@ -23,13 +23,13 @@ impl fmt::Display for ToAstError {
                 write!(f, "A branch of the rnix AST was empty")
             }
             ToAstError::ParsedTypeError(err) => {
-                write!(f, "Error raising to rnix's typed AST: {}", err.to_string())
+                write!(f, "Error raising to rnix's typed AST: {}", err)
             }
             ToAstError::ParseError => {
                 write!(f, "There was an error in the rnix AST")
             }
             ToAstError::ValueError(err) => {
-                write!(f, "Error parsing value: {}", err.to_string())
+                write!(f, "Error parsing value: {}", err)
             }
         }
     }
@@ -41,7 +41,7 @@ impl TryFrom<AST> for NixExpr {
     type Error = ToAstError;
 
     fn try_from(value: AST) -> Result<Self, Self::Error> {
-        return NixExpr::try_from(value.root().inner());
+        NixExpr::try_from(value.root().inner())
     }
 }
 
@@ -159,7 +159,7 @@ fn convert_dynamic(dynamic: Dynamic) -> Result<ast::Dynamic, ToAstError> {
 
 fn convert_ident(ident: rnix::types::Ident) -> Result<ast::Ident, ToAstError> {
     Ok(ast::Ident {
-        inner: ident.to_inner_string().to_string(),
+        inner: ident.to_inner_string(),
     })
 }
 
@@ -303,7 +303,7 @@ fn convert_unary_op(unary_op: rnix::types::UnaryOp) -> Result<ast::UnaryOp, ToAs
 }
 
 fn convert_value(value: rnix::types::Value) -> Result<ast::NixValue, ToAstError> {
-    Ok(value.to_value().map_err(ToAstError::ValueError)?)
+    value.to_value().map_err(ToAstError::ValueError)
 }
 
 fn convert_with(with: rnix::types::With) -> Result<ast::With, ToAstError> {

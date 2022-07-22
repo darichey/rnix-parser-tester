@@ -23,6 +23,7 @@
           cargo
           rust-analyzer
           rustfmt
+          clippy
 
           # C/C++ dev
           nix

@@ -198,10 +198,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn walk(
-    file: Option<String>,
-    recursive: bool,
-) -> Result<Box<dyn Iterator<Item = (String, NixSource)>>, Box<dyn Error>> {
+type WalkIter = Box<dyn Iterator<Item = (String, NixSource)>>;
+
+fn walk(file: Option<String>, recursive: bool) -> Result<WalkIter, Box<dyn Error>> {
     match file {
         Some(file) => {
             let file = normalize(file)?;
@@ -242,8 +241,8 @@ fn walk(
 }
 
 fn normalize(file: String) -> Result<PathBuf, Box<dyn Error>> {
-    if let Some(file) = file.strip_prefix("<") {
-        if let Some(file) = file.strip_suffix(">") {
+    if let Some(file) = file.strip_prefix('<') {
+        if let Some(file) = file.strip_suffix('>') {
             let mut path = path_to_nixpkgs()?;
             path.push(file);
             return Ok(path);
@@ -263,11 +262,7 @@ fn path_to_nixpkgs() -> Result<PathBuf, Box<dyn Error>> {
     Ok(PathBuf::from(&nixpkgs["nixpkgs=".len()..]))
 }
 
-fn dump(
-    filename: String,
-    input: NixSource,
-    parser: &Vec<ParserImpl>,
-) -> Result<(), Box<dyn Error>> {
+fn dump(filename: String, input: NixSource, parser: &[ParserImpl]) -> Result<(), Box<dyn Error>> {
     println!("{filename} ...");
 
     if parser.contains(&ParserImpl::Reference) {

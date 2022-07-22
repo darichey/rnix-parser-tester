@@ -288,7 +288,7 @@ impl Normalizer {
                         let key_head = key.path.remove(0);
                         let key_tail = key.path;
 
-                        let value = if key_tail.len() > 0 {
+                        let value = if !key_tail.is_empty() {
                             // If the entry is of the form `x.y.z = bar`, then we expand into `x = { y.z = bar }` and recurse
                             self.normalize_attr_set(AttrSet {
                                 entries: vec![Entry::KeyValue(KeyValue {
@@ -502,7 +502,7 @@ impl Normalizer {
 fn canonicalize(path: String) -> String {
     // Note that trailing slashes can't occur in user-written nix code, but they can appear in arguments to this function when normalizing interpolated paths.
     // For example, when normalizing the path `/foo/${"bar"}`, normalize_path_with_interpol will call us with `"/foo/"`.
-    let has_trailing_slash = path.ends_with("/");
+    let has_trailing_slash = path.ends_with('/');
 
     let mut res = vec![];
 

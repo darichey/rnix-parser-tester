@@ -11,7 +11,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new() -> Parser {
+    pub fn new() -> Self {
         let ffi_parser = unsafe { ffi::init_parser() };
         Parser { ffi_parser }
     }
@@ -59,6 +59,12 @@ impl Parser {
 impl Drop for Parser {
     fn drop(&mut self) {
         unsafe { ffi::destroy_parser(self.ffi_parser) }
+    }
+}
+
+impl Default for Parser {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
