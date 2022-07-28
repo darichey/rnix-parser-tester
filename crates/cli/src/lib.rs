@@ -22,14 +22,14 @@ pub fn get_rnix_json(source: &NixSource) -> Result<String, Box<dyn Error>> {
     let home_path = env::var("HOME")?;
     let ast = match source {
         NixSource::String(input) => normalize_nix_expr(
-            RNixExpr::try_from(rnix::parse(input))?,
+            RNixExpr::try_from(rnix::Root::parse(input))?,
             env::current_dir()?.into_os_string().into_string().unwrap(),
             home_path,
         ),
         NixSource::File(path) => {
             let input = fs::read_to_string(path)?;
             normalize_nix_expr(
-                RNixExpr::try_from(rnix::parse(input.as_str()))?,
+                RNixExpr::try_from(rnix::Root::parse(input.as_str()))?,
                 path.parent()
                     .unwrap()
                     .to_path_buf()

@@ -1,10 +1,14 @@
+mod value;
+
 use itertools::{chain, Either, Itertools};
 use normal_ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NormalNixExpr};
 use rnix_ast::ast::{
-    Anchor, Apply, Assert, AttrSet, BinOp, BinOpKind, Dynamic, Entry, Ident, IfElse, Inherit, Key,
-    KeyValue, Lambda, LegacyLet, LetIn, List, NixValue, Paren, PathPart, PathWithInterpol,
-    RNixExpr, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind, With,
+    Apply, Assert, Attr, AttrSet, Attrpath, AttrpathValue, BinOp, BinOpKind, Dynamic, Entry,
+    HasAttr, Ident, IfElse, Inherit, Lambda, LegacyLet, LetIn, List, Literal, LiteralKind, Param,
+    Paren, PathPart, PathWithInterpol, RNixExpr, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind,
+    With,
 };
+use value::{parse_path, Anchor};
 
 pub fn normalize_nix_expr(expr: RNixExpr, base_path: String, home_path: String) -> NormalNixExpr {
     Normalizer {
@@ -19,64 +23,25 @@ struct Normalizer {
     home_path: String,
 }
 
-/// Called to indicate that some assumption we made about the structure of [`RNixExpr`] was violated.
-///
-/// Not every [`RNixExpr`] variant directly corresponds to a [`NormalNixExpr`] variant.
-/// For example, we cannot directly normalize a [`RNixExpr::KeyValue`]. Instead, it will be
-/// handled when normalizing its parent [`RNixExpr::AttrSet`]. So, if we ever encounter a
-/// [`RNixExpr::KeyValue`] that is _not_ within a [`RNixExpr::AttrSet`], something has gone
-/// wrong, so we panic, giving info about what we encountered and how we thought it should
-/// have been handled.
-macro_rules! unhandled_normalization_path {
-    ($encountered:expr, $thought_handled:expr) => {
-        panic!("Unhandled normalization path: encountered {:?} but I thought this would be handled by {}", $encountered, $thought_handled)
-    };
-}
-
 impl Normalizer {
     fn normalize(&self, expr: RNixExpr) -> NormalNixExpr {
         match expr {
             RNixExpr::Apply(apply) => self.normalize_apply(apply),
             RNixExpr::Assert(assert) => self.normalize_assert(assert),
-            RNixExpr::Key(key) => unhandled_normalization_path!(key, "attr set normalization"),
-            RNixExpr::Dynamic(dynamic) => {
-                unhandled_normalization_path!(dynamic, "attr set normalization")
-            }
             RNixExpr::Ident(ident) => self.normalize_ident(ident),
             RNixExpr::IfElse(if_else) => self.normalize_if_else(if_else),
             RNixExpr::Select(select) => self.normalize_select(select),
-            RNixExpr::Inherit(inherit) => {
-                unhandled_normalization_path!(inherit, "attr set normalization")
-            }
-            RNixExpr::InheritFrom(inherit_from) => {
-                unhandled_normalization_path!(inherit_from, "attr set normalization")
-            }
             RNixExpr::Lambda(lambda) => self.normalize_lambda(lambda),
             RNixExpr::LegacyLet(legacy_let) => self.normalize_legacy_let(legacy_let),
             RNixExpr::LetIn(let_in) => self.normalize_let_in(let_in),
             RNixExpr::List(list) => self.normalize_list(list),
             RNixExpr::BinOp(bin_op) => self.normalize_bin_op(bin_op),
             RNixExpr::Paren(paren) => self.normalize_paren(paren),
-            RNixExpr::PatBind(pat_bind) => {
-                unhandled_normalization_path!(pat_bind, "lambda normalization")
-            }
-            RNixExpr::PatEntry(pat_entry) => {
-                unhandled_normalization_path!(pat_entry, "lambda normalization")
-            }
-            RNixExpr::Pattern(pattern) => {
-                unhandled_normalization_path!(pattern, "lambda normalization")
-            }
             RNixExpr::Root(root) => self.normalize_root(root),
             RNixExpr::AttrSet(attr_set) => self.normalize_attr_set(attr_set),
-            RNixExpr::KeyValue(key_value) => {
-                unhandled_normalization_path!(key_value, "attr set normalization")
-            }
             RNixExpr::Str(str) => self.normalize_str(str),
-            RNixExpr::StrInterpol(str_interpol) => {
-                unhandled_normalization_path!(str_interpol, "string normalization")
-            }
             RNixExpr::UnaryOp(unary_op) => self.normalize_unary_op(unary_op),
-            RNixExpr::Value(value) => self.normalize_value(value),
+            RNixExpr::Literal(literal) => self.normalize_literal(literal),
             RNixExpr::With(with) => self.normalize_with(with),
             RNixExpr::PathWithInterpol(path_with_interpol) => {
                 self.normalize_path_with_interpol(path_with_interpol)
@@ -93,7 +58,7 @@ impl Normalizer {
     /// collecting function arguments into a list.
     fn normalize_apply(&self, apply: Apply) -> NormalNixExpr {
         let mut fun: NormalNixExpr = self.normalize(*apply.lambda);
-        let last_arg = self.normalize(*apply.value);
+        let last_arg = self.normalize(*apply.argument);
 
         let mut args: Vec<NormalNixExpr> = vec![];
 
@@ -140,26 +105,28 @@ impl Normalizer {
     /// The interesting part here is normalizing the key path which is described in `normalize_as_attr_path`.
     fn normalize_select(&self, select: Select) -> NormalNixExpr {
         NormalNixExpr::Select {
-            subject: self.boxed_normalize(*select.set),
-            or_default: select.default.map(|default| self.boxed_normalize(*default)),
-            path: self.normalize_as_attr_path(select.key.path),
+            subject: self.boxed_normalize(*select.expr),
+            or_default: select
+                .default_expr
+                .map(|default| self.boxed_normalize(*default)),
+            path: self.normalize_attr_path(select.attrpath),
         }
     }
 
     /// TODO
     fn normalize_lambda(&self, lambda: Lambda) -> NormalNixExpr {
-        let (arg, formals) = match *lambda.arg {
-            RNixExpr::Ident(ident) => (Some(ident.inner), None),
-            RNixExpr::Pattern(pattern) => {
-                let at = pattern.at.map(|at| at.inner);
+        let (arg, formals) = match lambda.param {
+            Param::IdentParam(ident_param) => (Some(ident_param.ident.inner), None),
+            Param::Pattern(pattern) => {
+                let at = pattern.pat_bind.map(|pat_bind| pat_bind.ident.inner);
                 let formals = Formals {
                     ellipsis: pattern.ellipsis,
                     entries: pattern
-                        .entries
+                        .pat_entries
                         .into_iter()
                         .map(|entry| {
                             (
-                                entry.name.inner,
+                                entry.ident.inner,
                                 Formal {
                                     default: entry.default.map(|default| self.normalize(*default)),
                                 },
@@ -170,9 +137,6 @@ impl Normalizer {
 
                 (at, Some(formals))
             }
-            other => unreachable!(
-                "I thought lambda args could only be Ident or Pattern, but it was: {other:?}"
-            ),
         };
 
         NormalNixExpr::Lambda {
@@ -284,13 +248,13 @@ impl Normalizer {
     /// TODO
     fn normalize_paren(&self, paren: Paren) -> NormalNixExpr {
         // The ref impl has no concept of parens, so simply discard it
-        self.normalize(*paren.inner)
+        self.normalize(*paren.expr)
     }
 
     /// TODO
     fn normalize_root(&self, root: Root) -> NormalNixExpr {
         // The ref impl has no concept of a root, so simply discard it
-        self.normalize(*root.inner)
+        self.normalize(*root.expr)
     }
 
     /// TODO
@@ -300,15 +264,18 @@ impl Normalizer {
             attr_set.entries.into_iter().partition_map(|entry| {
                 match entry {
                     // If the entry is of the form `foo = bar`
-                    Entry::KeyValue(KeyValue { mut key, value }) => {
-                        let key_head = key.path.remove(0);
-                        let key_tail = key.path;
+                    Entry::AttrpathValue(AttrpathValue {
+                        mut attrpath,
+                        value,
+                    }) => {
+                        let key_head = attrpath.attrs.remove(0);
+                        let key_tail = attrpath.attrs;
 
                         let value = if !key_tail.is_empty() {
                             // If the entry is of the form `x.y.z = bar`, then we expand into `x = { y.z = bar }` and recurse
                             self.normalize_attr_set(AttrSet {
-                                entries: vec![Entry::KeyValue(KeyValue {
-                                    key: Key { path: key_tail },
+                                entries: vec![Entry::AttrpathValue(AttrpathValue {
+                                    attrpath: Attrpath { attrs: key_tail },
                                     value,
                                 })],
                                 recursive: false,
@@ -335,7 +302,7 @@ impl Normalizer {
                     }
                     // If the entry is of the form `inherit foo`
                     Entry::Inherit(Inherit { from, idents }) => {
-                        let subject = from.map(|from| self.boxed_normalize(*from.inner));
+                        let subject = from.map(|from| self.boxed_normalize(*from.expr));
 
                         let attrs: Vec<AttrDef> = idents
                             .into_iter()
@@ -378,7 +345,11 @@ impl Normalizer {
     /// TODO
     fn normalize_str(&self, str: Str) -> NormalNixExpr {
         // If any of the parts are Ast, then this string has interoplations in it
-        if str.parts.iter().any(|part| matches!(part, StrPart::Ast(_))) {
+        if str
+            .parts
+            .iter()
+            .any(|part| matches!(part, StrPart::Interpolation(_)))
+        {
             // The reference impl treats string interpolation as string concatenation with force_string: true
             NormalNixExpr::OpConcatStrings {
                 force_string: true,
@@ -387,7 +358,7 @@ impl Normalizer {
                     .into_iter()
                     .map(|part| match part {
                         StrPart::Literal(lit) => NormalNixExpr::String(lit),
-                        StrPart::Ast(expr) => self.normalize(*expr.inner),
+                        StrPart::Interpolation(str_interpol) => self.normalize(*str_interpol.expr),
                     })
                     .collect(),
             }
@@ -406,41 +377,22 @@ impl Normalizer {
     /// TODO
     fn normalize_unary_op(&self, unary_op: UnaryOp) -> NormalNixExpr {
         match unary_op.operator {
-            UnaryOpKind::Invert => NormalNixExpr::OpNot(self.boxed_normalize(*unary_op.value)),
+            UnaryOpKind::Invert => NormalNixExpr::OpNot(self.boxed_normalize(*unary_op.expr)),
             // The reference parser treats negation as subtraction from 0
             UnaryOpKind::Negate => NormalNixExpr::Call {
                 fun: Box::new(NormalNixExpr::Var("__sub".to_string())),
-                args: vec![NormalNixExpr::Int(0), self.normalize(*unary_op.value)],
+                args: vec![NormalNixExpr::Int(0), self.normalize(*unary_op.expr)],
             },
         }
     }
 
     /// TODO
-    fn normalize_path(&self, path: rnix_ast::ast::Path) -> NormalNixExpr {
-        match path.anchor {
-            Anchor::Absolute => NormalNixExpr::Path(canonicalize(path.path)),
-            Anchor::Relative => {
-                NormalNixExpr::Path(canonicalize(format!("{}/{}", self.base_path, path.path)))
-            }
-            Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, path.path)),
-            // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
-            Anchor::Store => NormalNixExpr::Call {
-                fun: Box::new(NormalNixExpr::Var("__findFile".to_string())),
-                args: vec![
-                    NormalNixExpr::Var("__nixPath".to_string()),
-                    NormalNixExpr::String(path.path),
-                ],
-            },
-        }
-    }
-
-    /// TODO
-    fn normalize_value(&self, value: NixValue) -> NormalNixExpr {
-        match value {
-            NixValue::Float(nf) => NormalNixExpr::Float(nf),
-            NixValue::Integer(n) => NormalNixExpr::Int(n),
-            NixValue::String(s) => NormalNixExpr::String(s),
-            NixValue::Path(path) => self.normalize_path(path),
+    fn normalize_literal(&self, literal: Literal) -> NormalNixExpr {
+        match literal.kind {
+            LiteralKind::Float(nf) => NormalNixExpr::Float(nf),
+            LiteralKind::Integer(n) => NormalNixExpr::Int(n),
+            LiteralKind::Path(path) => self.normalize_path_literal(path),
+            LiteralKind::Uri(path) => NormalNixExpr::String(path),
         }
     }
 
@@ -453,18 +405,26 @@ impl Normalizer {
     }
 
     /// TODO
-    fn normalize_path_with_interpol(&self, path_with_interpol: PathWithInterpol) -> NormalNixExpr {
+    fn normalize_path_with_interpol(
+        &self,
+        mut path_with_interpol: PathWithInterpol,
+    ) -> NormalNixExpr {
         // The reference impl treats path interpolation as string concatenation of all of the interpolated parts with the first part being expanded into a Path
-        let base_path = self.normalize_path(path_with_interpol.base_path);
 
-        let parts = path_with_interpol
-            .parts
-            .into_iter()
-            .skip(1) // skip the first part since we took care of that above
-            .map(|part| match part {
-                PathPart::Literal(lit) => NormalNixExpr::String(lit),
-                PathPart::Ast(expr) => self.normalize(*expr.inner),
-            });
+        let parts_head = path_with_interpol.parts.remove(0);
+        let parts_tail = path_with_interpol.parts;
+
+        let base_path = match parts_head {
+            PathPart::Literal(literal) => self.normalize_path_literal(literal),
+            PathPart::Interpolation(_) => {
+                unreachable!("The first part of a PathWithInterpol should always be a literal")
+            }
+        };
+
+        let parts = parts_tail.into_iter().map(|part| match part {
+            PathPart::Literal(lit) => NormalNixExpr::String(lit),
+            PathPart::Interpolation(str_interpol) => self.normalize(*str_interpol.expr),
+        });
 
         NormalNixExpr::OpConcatStrings {
             force_string: false,
@@ -475,25 +435,46 @@ impl Normalizer {
     }
 
     /// TODO
-    fn normalize_has_attr(&self, has_attr: rnix_ast::ast::HasAttr) -> NormalNixExpr {
+    fn normalize_has_attr(&self, has_attr: HasAttr) -> NormalNixExpr {
         NormalNixExpr::OpHasAttr {
-            subject: self.boxed_normalize(*has_attr.set),
-            path: self.normalize_as_attr_path(has_attr.key.path),
+            subject: self.boxed_normalize(*has_attr.expr),
+            path: self.normalize_attr_path(has_attr.attrpath),
         }
     }
 
-    fn normalize_as_attr_path(&self, path: Vec<RNixExpr>) -> Vec<AttrName> {
-        path.into_iter()
-            .map(|expr| {
-                self.normalize_key_part_as(expr, AttrName::Symbol, AttrName::Expr)
+    fn normalize_attr_path(&self, attrpath: Attrpath) -> Vec<AttrName> {
+        attrpath
+            .attrs
+            .into_iter()
+            .map(|attr| {
+                self.normalize_key_part_as(attr, AttrName::Symbol, AttrName::Expr)
                     .into_inner()
             })
             .collect()
     }
 
+    fn normalize_path_literal(&self, literal: String) -> NormalNixExpr {
+        let (anchor, path) = parse_path(literal);
+        match anchor {
+            Anchor::Absolute => NormalNixExpr::Path(canonicalize(path)),
+            Anchor::Relative => {
+                NormalNixExpr::Path(canonicalize(format!("{}/{}", self.base_path, path)))
+            }
+            Anchor::Home => NormalNixExpr::Path(format!("{}/{}", self.home_path, path)),
+            // The reference impl treats store paths as a call to __findFile with the args __nixPath and the path
+            Anchor::Store => NormalNixExpr::Call {
+                fun: Box::new(NormalNixExpr::Var("__findFile".to_string())),
+                args: vec![
+                    NormalNixExpr::Var("__nixPath".to_string()),
+                    NormalNixExpr::String(path),
+                ],
+            },
+        }
+    }
+
     fn normalize_key_part_as<ND, D, FND, FD>(
         &self,
-        expr: RNixExpr,
+        attr: Attr,
         non_dynamic: FND,
         dynamic: FD,
     ) -> Either<ND, D>
@@ -501,11 +482,11 @@ impl Normalizer {
         FND: Fn(String) -> ND,
         FD: Fn(NormalNixExpr) -> D,
     {
-        match expr {
+        match attr {
             // If the expression is a plain identifier, it's definitely not dynamic
-            RNixExpr::Ident(Ident { inner }) => Either::Left(non_dynamic(inner)),
+            Attr::Ident(Ident { inner }) => Either::Left(non_dynamic(inner)),
             // If the expression is a string, it's...
-            RNixExpr::Str(str) => match self.normalize_str(str) {
+            Attr::Str(str) => match self.normalize_str(str) {
                 // not dynamic if it's just a plain string
                 NormalNixExpr::String(s) => Either::Left(non_dynamic(s)),
                 // dynamic if it has string interpolations in it
@@ -513,13 +494,12 @@ impl Normalizer {
                 other => unreachable!("It shouldn't be possible for normalize_str to return anything else, but it did: {other:?}"),
             },
             // If the expression is of the form `${x}`, it's...
-            RNixExpr::Dynamic(Dynamic { inner }) => match self.normalize(*inner) {
+            Attr::Dynamic(Dynamic { expr }) => match self.normalize(*expr) {
                 // _not_ dynamic if x is just a plain string (e.g., `${"foo"}`)
                 NormalNixExpr::String(s) => Either::Left(non_dynamic(s)),
                 // dynamic otherwise
                 inner => Either::Right(dynamic(inner)),
             },
-            other => unreachable!("It shouldn't be possible for a key path to contain other kinds of expressions, but it did: {other:?}"),
         }
     }
 }

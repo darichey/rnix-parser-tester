@@ -2,6 +2,6 @@
 members = ["crates/*"]
 
 [workspace.dependencies]
-rnix = { git = "https://github.com/darichey/rnix-parser", branch = "redo-string-parts" }
+rnix = { git = "https://github.com/darichey/rnix-parser", branch = "all-my-patches" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0.82", features = ["unbounded_depth"] }

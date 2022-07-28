@@ -1,67 +1,39 @@
-pub use rnix::{
-    types::{BinOpKind, UnaryOpKind},
-    value::{Anchor, Path},
-    NixValue,
-};
+pub use rnix::ast::{BinOpKind, UnaryOpKind};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum RNixExpr {
     Apply(Apply),
     Assert(Assert),
-    Key(Key),
-    Dynamic(Dynamic),
     // Error, // Error is intentionally omitted, because we only care about parsing well-formed Nix
-    Ident(Ident),
     IfElse(IfElse),
     Select(Select),
-    Inherit(Inherit),
-    InheritFrom(InheritFrom),
+    Literal(Literal),
     Lambda(Lambda),
     LegacyLet(LegacyLet),
     LetIn(LetIn),
     List(List),
     BinOp(BinOp),
     Paren(Paren),
-    PatBind(PatBind),
-    PatEntry(PatEntry),
-    Pattern(Pattern),
     Root(Root),
     AttrSet(AttrSet),
-    KeyValue(KeyValue),
-    Str(Str),
-    StrInterpol(StrInterpol),
     UnaryOp(UnaryOp),
-    Value(NixValue),
+    Ident(Ident),
     With(With),
-    PathWithInterpol(PathWithInterpol),
+    Str(Str),
     HasAttr(HasAttr),
+    PathWithInterpol(PathWithInterpol),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Apply {
     pub lambda: Box<RNixExpr>,
-    pub value: Box<RNixExpr>,
+    pub argument: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Assert {
     pub condition: Box<RNixExpr>,
     pub body: Box<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Key {
-    pub path: Vec<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Dynamic {
-    pub inner: Box<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Ident {
-    pub inner: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -73,9 +45,9 @@ pub struct IfElse {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Select {
-    pub set: Box<RNixExpr>,
-    pub key: Key,
-    pub default: Option<Box<RNixExpr>>,
+    pub expr: Box<RNixExpr>,
+    pub attrpath: Attrpath,
+    pub default_expr: Option<Box<RNixExpr>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -86,12 +58,17 @@ pub struct Inherit {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct InheritFrom {
-    pub inner: Box<RNixExpr>,
+    pub expr: Box<RNixExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Literal {
+    pub kind: LiteralKind,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Lambda {
-    pub arg: Box<RNixExpr>,
+    pub param: Param,
     pub body: Box<RNixExpr>,
 }
 
@@ -120,30 +97,12 @@ pub struct BinOp {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Paren {
-    pub inner: Box<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PatBind {
-    pub name: Ident,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PatEntry {
-    pub name: Ident,
-    pub default: Option<Box<RNixExpr>>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Pattern {
-    pub entries: Vec<PatEntry>,
-    pub at: Option<Ident>,
-    pub ellipsis: bool,
+    pub expr: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Root {
-    pub inner: Box<RNixExpr>,
+    pub expr: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -153,25 +112,14 @@ pub struct AttrSet {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct KeyValue {
-    pub key: Key,
-    pub value: Box<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Str {
-    pub parts: Vec<StrPart>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct StrInterpol {
-    pub inner: Box<RNixExpr>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct UnaryOp {
     pub operator: UnaryOpKind,
-    pub value: Box<RNixExpr>,
+    pub expr: Box<RNixExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Ident {
+    pub inner: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -181,31 +129,102 @@ pub struct With {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PathWithInterpol {
-    pub base_path: Path,
-    pub parts: Vec<PathPart>,
+pub struct Str {
+    pub parts: Vec<StrPart>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HasAttr {
-    pub set: Box<RNixExpr>,
-    pub key: Key,
+    pub expr: Box<RNixExpr>,
+    pub attrpath: Attrpath,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PathWithInterpol {
+    pub parts: Vec<PathPart>,
+}
+
+// == Nodes that don't appear at the top level ==
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Attrpath {
+    pub attrs: Vec<Attr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Attr {
+    Ident(Ident),
+    Dynamic(Dynamic),
+    Str(Str),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum LiteralKind {
+    Float(f64),
+    Integer(i64),
+    Path(String),
+    Uri(String),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Dynamic {
+    pub expr: Box<RNixExpr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Param {
+    Pattern(Pattern),
+    IdentParam(IdentParam),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Pattern {
+    pub pat_entries: Vec<PatEntry>,
+    pub ellipsis: bool,
+    pub pat_bind: Option<PatBind>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PatEntry {
+    pub ident: Ident,
+    pub default: Option<Box<RNixExpr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PatBind {
+    pub ident: Ident,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IdentParam {
+    pub ident: Ident,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Entry {
-    KeyValue(KeyValue),
     Inherit(Inherit),
+    AttrpathValue(AttrpathValue),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttrpathValue {
+    pub attrpath: Attrpath,
+    pub value: Box<RNixExpr>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum StrPart {
     Literal(String),
-    Ast(StrInterpol),
+    Interpolation(StrInterpol),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathPart {
     Literal(String),
-    Ast(StrInterpol),
+    Interpolation(StrInterpol),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StrInterpol {
+    pub expr: Box<RNixExpr>,
 }
