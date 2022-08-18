@@ -7,6 +7,8 @@ pub enum RNixExpr {
     // Error, // Error is intentionally omitted, because we only care about parsing well-formed Nix
     IfElse(IfElse),
     Select(Select),
+    Str(Str),
+    Path(Path),
     Literal(Literal),
     Lambda(Lambda),
     LegacyLet(LegacyLet),
@@ -19,9 +21,7 @@ pub enum RNixExpr {
     UnaryOp(UnaryOp),
     Ident(Ident),
     With(With),
-    Str(Str),
     HasAttr(HasAttr),
-    PathWithInterpol(PathWithInterpol),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +48,16 @@ pub struct Select {
     pub expr: Box<RNixExpr>,
     pub attrpath: Attrpath,
     pub default_expr: Option<Box<RNixExpr>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Str {
+    pub parts: Vec<InterpolPart<String>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Path {
+    pub parts: Vec<InterpolPart<String>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -129,19 +139,9 @@ pub struct With {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Str {
-    pub parts: Vec<StrPart>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
 pub struct HasAttr {
     pub expr: Box<RNixExpr>,
     pub attrpath: Attrpath,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct PathWithInterpol {
-    pub parts: Vec<PathPart>,
 }
 
 // == Nodes that don't appear at the top level ==
@@ -162,7 +162,6 @@ pub enum Attr {
 pub enum LiteralKind {
     Float(f64),
     Integer(i64),
-    Path(String),
     Uri(String),
 }
 
@@ -213,14 +212,8 @@ pub struct AttrpathValue {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum StrPart {
-    Literal(String),
-    Interpolation(StrInterpol),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum PathPart {
-    Literal(String),
+pub enum InterpolPart<T> {
+    Literal(T),
     Interpolation(StrInterpol),
 }
 

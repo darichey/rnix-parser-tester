@@ -1,6 +1,6 @@
 use std::{fmt, num};
 
-use rnix::{ast::HasEntry, parser::ParseError, Parse, Root};
+use rnix::{ast::AstToken, parser::ParseError, Parse, Root};
 
 use crate::ast::{self, RNixExpr};
 
@@ -84,6 +84,8 @@ impl TryFrom<rnix::ast::Expr> for RNixExpr {
             ),
             rnix::ast::Expr::IfElse(if_else) => convert_if_else(if_else).map(RNixExpr::IfElse),
             rnix::ast::Expr::Select(select) => convert_select(select).map(RNixExpr::Select),
+            rnix::ast::Expr::Str(str) => convert_str(str).map(RNixExpr::Str),
+            rnix::ast::Expr::Path(path) => convert_path(path).map(RNixExpr::Path),
             rnix::ast::Expr::Literal(literal) => convert_literal(literal).map(RNixExpr::Literal),
             rnix::ast::Expr::Lambda(lambda) => convert_lambda(lambda).map(RNixExpr::Lambda),
             rnix::ast::Expr::LegacyLet(legacy_let) => {
@@ -95,15 +97,10 @@ impl TryFrom<rnix::ast::Expr> for RNixExpr {
             rnix::ast::Expr::Paren(paren) => convert_paren(paren).map(RNixExpr::Paren),
             rnix::ast::Expr::Root(root) => convert_root(root).map(RNixExpr::Root),
             rnix::ast::Expr::AttrSet(attr_set) => convert_attr_set(attr_set).map(RNixExpr::AttrSet),
-
             rnix::ast::Expr::UnaryOp(unary_op) => convert_unary_op(unary_op).map(RNixExpr::UnaryOp),
             rnix::ast::Expr::Ident(ident) => convert_ident(ident).map(RNixExpr::Ident),
             rnix::ast::Expr::With(with) => convert_with(with).map(RNixExpr::With),
-            rnix::ast::Expr::Str(str) => convert_str(str).map(RNixExpr::Str),
             rnix::ast::Expr::HasAttr(has_attr) => convert_has_attr(has_attr).map(RNixExpr::HasAttr),
-            rnix::ast::Expr::PathWithInterpol(path_with_interpol) => {
-                convert_path_with_interpol(path_with_interpol).map(RNixExpr::PathWithInterpol)
-            }
         }
     }
 }
@@ -172,7 +169,6 @@ fn convert_literal(literal: rnix::ast::Literal) -> Result<ast::Literal, ToAstErr
             rnix::ast::LiteralKind::Integer(integer) => {
                 ast::LiteralKind::Integer(integer.value().map_err(ToAstError::ParseIntError)?)
             }
-            rnix::ast::LiteralKind::Path(path) => ast::LiteralKind::Path(path.to_string()),
             rnix::ast::LiteralKind::Uri(uri) => ast::LiteralKind::Uri(uri.to_string()),
         },
     })
@@ -235,13 +231,11 @@ fn convert_attr_set(attr_set: rnix::ast::AttrSet) -> Result<ast::AttrSet, ToAstE
 
 fn convert_str(str: rnix::ast::Str) -> Result<ast::Str, ToAstError> {
     Ok(ast::Str {
-        parts: try_convert_all_with!(str.parts().into_iter(), convert_str_part),
+        parts: try_convert_all_with!(str.normalized_parts().into_iter(), convert_interpol_part),
     })
 }
 
-fn convert_str_interpol(
-    str_interpol: rnix::ast::StrInterpol,
-) -> Result<ast::StrInterpol, ToAstError> {
+fn convert_interpol(str_interpol: rnix::ast::Interpol) -> Result<ast::StrInterpol, ToAstError> {
     Ok(ast::StrInterpol {
         expr: try_convert!(str_interpol.expr()),
     })
@@ -263,11 +257,18 @@ fn convert_with(with: rnix::ast::With) -> Result<ast::With, ToAstError> {
     })
 }
 
-fn convert_path_with_interpol(
-    path_with_interpol: rnix::ast::PathWithInterpol,
-) -> Result<ast::PathWithInterpol, ToAstError> {
-    Ok(ast::PathWithInterpol {
-        parts: try_convert_all_with!(path_with_interpol.parts().into_iter(), convert_path_part),
+fn convert_path(path: rnix::ast::Path) -> Result<ast::Path, ToAstError> {
+    Ok(ast::Path {
+        parts: try_convert_all_with!(path.parts().into_iter(), |part| {
+            Ok(match part {
+                rnix::ast::InterpolPart::Literal(literal) => {
+                    ast::InterpolPart::Literal(literal.syntax().text().to_string())
+                }
+                rnix::ast::InterpolPart::Interpolation(interpol) => {
+                    ast::InterpolPart::Interpolation(convert_interpol(interpol)?)
+                }
+            })
+        }),
     })
 }
 
@@ -278,25 +279,20 @@ fn convert_has_attr(has_attr: rnix::ast::HasAttr) -> Result<ast::HasAttr, ToAstE
     })
 }
 
-fn convert_str_part(part: rnix::ast::StrPart) -> Result<ast::StrPart, ToAstError> {
+fn convert_interpol_part<T>(
+    part: rnix::ast::InterpolPart<T>,
+) -> Result<ast::InterpolPart<T>, ToAstError> {
     Ok(match part {
-        rnix::ast::StrPart::Literal(lit) => ast::StrPart::Literal(lit),
-        rnix::ast::StrPart::Interpolation(str_interpol) => {
-            ast::StrPart::Interpolation(convert_str_interpol(str_interpol)?)
+        rnix::ast::InterpolPart::Literal(lit) => ast::InterpolPart::Literal(lit),
+        rnix::ast::InterpolPart::Interpolation(interpol) => {
+            ast::InterpolPart::Interpolation(convert_interpol(interpol)?)
         }
     })
 }
 
-fn convert_path_part(part: rnix::ast::PathPart) -> Result<ast::PathPart, ToAstError> {
-    Ok(match part {
-        rnix::ast::PathPart::Literal(lit) => ast::PathPart::Literal(lit),
-        rnix::ast::PathPart::Interpolation(str_interpol) => {
-            ast::PathPart::Interpolation(convert_str_interpol(str_interpol)?)
-        }
-    })
-}
-
-fn entries_from_holder(entry_holder: &impl HasEntry) -> Result<Vec<ast::Entry>, ToAstError> {
+fn entries_from_holder(
+    entry_holder: &impl rnix::ast::HasEntry,
+) -> Result<Vec<ast::Entry>, ToAstError> {
     Ok(try_convert_all_with!(entry_holder.entries(), convert_entry))
 }
 

@@ -4,9 +4,8 @@ use itertools::{chain, Either, Itertools};
 use normal_ast::{AttrDef, AttrName, DynamicAttrDef, Formal, Formals, NormalNixExpr};
 use rnix_ast::ast::{
     Apply, Assert, Attr, AttrSet, Attrpath, AttrpathValue, BinOp, BinOpKind, Dynamic, Entry,
-    HasAttr, Ident, IfElse, Inherit, Lambda, LegacyLet, LetIn, List, Literal, LiteralKind, Param,
-    Paren, PathPart, PathWithInterpol, RNixExpr, Root, Select, Str, StrPart, UnaryOp, UnaryOpKind,
-    With,
+    HasAttr, Ident, IfElse, Inherit, InterpolPart, Lambda, LegacyLet, LetIn, List, Literal,
+    LiteralKind, Param, Paren, Path, RNixExpr, Root, Select, Str, UnaryOp, UnaryOpKind, With,
 };
 use value::{parse_path, Anchor};
 
@@ -31,6 +30,8 @@ impl Normalizer {
             RNixExpr::Ident(ident) => self.normalize_ident(ident),
             RNixExpr::IfElse(if_else) => self.normalize_if_else(if_else),
             RNixExpr::Select(select) => self.normalize_select(select),
+            RNixExpr::Str(str) => self.normalize_str(str),
+            RNixExpr::Path(path) => self.normalize_path(path),
             RNixExpr::Lambda(lambda) => self.normalize_lambda(lambda),
             RNixExpr::LegacyLet(legacy_let) => self.normalize_legacy_let(legacy_let),
             RNixExpr::LetIn(let_in) => self.normalize_let_in(let_in),
@@ -39,13 +40,9 @@ impl Normalizer {
             RNixExpr::Paren(paren) => self.normalize_paren(paren),
             RNixExpr::Root(root) => self.normalize_root(root),
             RNixExpr::AttrSet(attr_set) => self.normalize_attr_set(attr_set),
-            RNixExpr::Str(str) => self.normalize_str(str),
             RNixExpr::UnaryOp(unary_op) => self.normalize_unary_op(unary_op),
             RNixExpr::Literal(literal) => self.normalize_literal(literal),
             RNixExpr::With(with) => self.normalize_with(with),
-            RNixExpr::PathWithInterpol(path_with_interpol) => {
-                self.normalize_path_with_interpol(path_with_interpol)
-            }
             RNixExpr::HasAttr(has_attr) => self.normalize_has_attr(has_attr),
         }
     }
@@ -348,7 +345,7 @@ impl Normalizer {
         if str
             .parts
             .iter()
-            .any(|part| matches!(part, StrPart::Interpolation(_)))
+            .any(|part| matches!(part, InterpolPart::Interpolation(_)))
         {
             // The reference impl treats string interpolation as string concatenation with force_string: true
             NormalNixExpr::OpConcatStrings {
@@ -357,15 +354,17 @@ impl Normalizer {
                     .parts
                     .into_iter()
                     .map(|part| match part {
-                        StrPart::Literal(lit) => NormalNixExpr::String(lit),
-                        StrPart::Interpolation(str_interpol) => self.normalize(*str_interpol.expr),
+                        InterpolPart::Literal(lit) => NormalNixExpr::String(lit),
+                        InterpolPart::Interpolation(str_interpol) => {
+                            self.normalize(*str_interpol.expr)
+                        }
                     })
                     .collect(),
             }
         } else {
             // otherwise, there should either be only be one part which is a literal or nothing which indicates an empty string
             match &*str.parts {
-                [StrPart::Literal(lit)] => NormalNixExpr::String(lit.to_string()),
+                [InterpolPart::Literal(lit)] => NormalNixExpr::String(lit.to_string()),
                 [] => NormalNixExpr::String("".to_string()),
                 other => unreachable!(
                     "String parts contained only multiple separate literals: {other:?}"
@@ -391,7 +390,6 @@ impl Normalizer {
         match literal.kind {
             LiteralKind::Float(nf) => NormalNixExpr::Float(nf),
             LiteralKind::Integer(n) => NormalNixExpr::Int(n),
-            LiteralKind::Path(path) => self.normalize_path_literal(path),
             LiteralKind::Uri(path) => NormalNixExpr::String(path),
         }
     }
@@ -405,32 +403,43 @@ impl Normalizer {
     }
 
     /// TODO
-    fn normalize_path_with_interpol(
-        &self,
-        mut path_with_interpol: PathWithInterpol,
-    ) -> NormalNixExpr {
-        // The reference impl treats path interpolation as string concatenation of all of the interpolated parts with the first part being expanded into a Path
+    fn normalize_path(&self, mut path: Path) -> NormalNixExpr {
+        // If any of the parts are Interpolations, then the expression is normalized as a string concatenation with force_string: false
+        if path
+            .parts
+            .iter()
+            .any(|part| matches!(part, InterpolPart::Interpolation(_)))
+        {
+            // Extract the first part, which must be a literal, and expand it
+            let parts_head = path.parts.remove(0);
+            let parts_tail = path.parts;
 
-        let parts_head = path_with_interpol.parts.remove(0);
-        let parts_tail = path_with_interpol.parts;
+            let base_path = match parts_head {
+                InterpolPart::Literal(literal) => self.normalize_path_literal(literal),
+                InterpolPart::Interpolation(_) => {
+                    unreachable!("The first part of a Path should always be a literal")
+                }
+            };
 
-        let base_path = match parts_head {
-            PathPart::Literal(literal) => self.normalize_path_literal(literal),
-            PathPart::Interpolation(_) => {
-                unreachable!("The first part of a PathWithInterpol should always be a literal")
+            let parts = parts_tail.into_iter().map(|part| match part {
+                InterpolPart::Literal(lit) => NormalNixExpr::String(lit),
+                InterpolPart::Interpolation(str_interpol) => self.normalize(*str_interpol.expr),
+            });
+
+            NormalNixExpr::OpConcatStrings {
+                force_string: false,
+                es: std::iter::once(base_path)
+                    .chain(parts.into_iter())
+                    .collect(),
             }
-        };
-
-        let parts = parts_tail.into_iter().map(|part| match part {
-            PathPart::Literal(lit) => NormalNixExpr::String(lit),
-            PathPart::Interpolation(str_interpol) => self.normalize(*str_interpol.expr),
-        });
-
-        NormalNixExpr::OpConcatStrings {
-            force_string: false,
-            es: std::iter::once(base_path)
-                .chain(parts.into_iter())
-                .collect(),
+        } else {
+            // otherwise, there should either be only be one part which is a literal. Expand it
+            match &*path.parts {
+                [InterpolPart::Literal(lit)] => self.normalize_path_literal(lit.to_string()),
+                other => unreachable!(
+                    "Path parts contained only multiple separate literals or was empty: {other:?}"
+                ),
+            }
         }
     }
 
